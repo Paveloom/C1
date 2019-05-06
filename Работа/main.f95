@@ -3,6 +3,7 @@ implicit none
 
      real(8), allocatable, dimension(:,:) :: A ! Матрица исходных данных
      integer N                                 ! Размер выборки
+     integer N_if                              ! Число исключений
 
      ! Коррелограмма:
 
@@ -30,13 +31,16 @@ implicit none
 
      ! Указать размер выборки
      N = 5860
+     
+     ! Указать число исключений
+     N_if = 301
 
      allocate(A(1:N,2)) ! Исходные данные
      allocate(r(1:N-1)) ! Для вычисления коррелограммы
 
      ! Считывание исходных данных
 
-        do i=1, N
+        do i = 1, N
                 read(*,*) A(i,1), A(i,2)
         enddo
 
@@ -45,9 +49,32 @@ implicit none
      x_mean = 0d0
 
      N_d = N
-     koef_mean = 1d0/N_d
+     koef_mean = 1d0/(N_d - N_if)
 
      do t = 1, N
+     
+          if ((t .eq. 2) .or. ((t .le. 8) .and. (t .ge. 4))) cycle
+          if ((t .eq. 10) .or. (t .eq. 54) .or. (t .eq. 133)) cycle
+          if ((t .ge. 1541) .and. (t .le. 1546)) cycle
+          if ((t .ge. 2141) .and. (t .le. 2149)) cycle
+          if ((t .ge. 2425) .and. (t .le. 2426)) cycle
+          if ((t .ge. 2772) .and. (t .le. 2777)) cycle
+          if ((t .ge. 2807) .and. (t .le. 2809)) cycle
+          if ((t .ge. 2863) .and. (t .le. 2867)) cycle
+          if ((t .ge. 2896) .and. (t .le. 2897)) cycle
+          if (t .eq. 3004) cycle
+          if ((t .ge. 3117) .and. (t .le. 3123)) cycle
+          if ((t .ge. 3537) .and. (t .le. 3545)) cycle
+          if ((t .ge. 3551) .and. (t .le. 3556)) cycle
+          if ((t .ge. 3537) .and. (t .le. 3545)) cycle
+          if ((t .ge. 3586) .and. (t .le. 3594)) cycle
+          if ((t .ge. 3602) .and. (t .le. 3607)) cycle
+          if ((t .ge. 3795) .and. (t .le. 3801)) cycle
+          if ((t .ge. 3810) .and. (t .le. 3953)) cycle
+          if ((t .ge. 3961) .and. (t .le. 4026)) cycle
+          if ((t .ge. 3537) .and. (t .le. 3545)) cycle
+          if ((t .eq. 5284) .or. (t .eq. 5287)) cycle
+          if ((t .eq. 5613) .or. (t .eq. 5669)) cycle 
           
           x_mean = x_mean + A(t,2)
      
@@ -132,7 +159,8 @@ implicit none
      
                     t_d = t
                              
-                    koef = 2d0 * pi * p_cur * t_d / N_d
+                    koef = 2d0 * pi * p_cur * t_d / (N_d - N_if)
+!                    koef = 2d0 * pi * p_cur * t_d / N_d
                              
                     cos_value = dcos(koef)
                     sin_value = dsin(koef)
@@ -148,7 +176,8 @@ implicit none
                              
           enddo
 
-          I_p(p) = (s1 * s1 + s2 * s2)/(N_d * pi)
+          I_p(p) = (s1 * s1 + s2 * s2)/( (N_d - N_if) * pi)
+!          I_p(p) = (s1 * s1 + s2 * s2)/(N_d * pi)
 
           write(11,'(e16.7, 1x, e16.7, 1x, e16.7)') N_d/p_cur, p_cur/N_d, I_p(p)
 
