@@ -46,8 +46,6 @@ implicit none
      & (i, i = 3602, 3607), (i, i = 3795, 3801), (i, i = 3810, 3953), (i, i = 3961, 4026),&
      & 5284, 5287, 5613, 5669 /)
      
-     write(*,'(i3,2x,i5,/)') (i, N_if_array(i), i = 1, 301)
-
      allocate(A(1:N,2)) ! Исходные данные
      allocate(r(1:N-1)) ! Для вычисления коррелограммы
 
@@ -76,33 +74,37 @@ implicit none
 
      ! Вычисление коррелограммы
 
-!     open(10, file="output1")
-!     do k = 1, N - 1
-! 
-!          k_d = k
-!                
-!          s1 = 0d0
-!  
-!          do t = 1, N - k
-!          
-!               s1 = s1 + (A(t,2) - x_mean) * (A(t+k,2) - x_mean)
-!          
-!          enddo
+     open(10, file="output1")
+     do k = 1, N - 1
+ 
+          k_d = k
+                
+          s1 = 0d0
+  
+          do t = 1, N - k
+          
+               if (any(t .eq. N_if_array)) cycle
+          
+               s1 = s1 + (A(t,2) - x_mean) * (A(t+k,2) - x_mean)
+          
+          enddo
 
-!          s2 = 0d0
+          s2 = 0d0
 
-!          do t = 1, N
-!               
-!               s2 = s2 + (A(t,2) - x_mean) * (A(t,2) - x_mean)
-!          
-!          enddo
+          do t = 1, N
+          
+               if (any(t .eq. N_if_array)) cycle
+               
+               s2 = s2 + (A(t,2) - x_mean) * (A(t,2) - x_mean)
+          
+          enddo
 
-!          r(k) = s1/s2
+          r(k) = s1 / s2
 
-!          write(10,'(e28.20, 1x, e28.20)') k_d, r(k)
+          write(10,'(e28.20, 1x, e28.20)') k_d, r(k)
 
-!     enddo
-!     close(10)
+     enddo
+     close(10)
 
      ! Определение pi
      pi = 4d0*datan(1d0)
@@ -115,66 +117,45 @@ implicit none
 
      allocate(I_p(1:p_num))   ! Для вычисления периодограммы вне зависимости от c
 
-!     open(11, file="output2")
-!     do p = 1, p_num, 1
+     open(11, file="output2")
+     do p = 1, p_num, 1
 
-!          p_d = p
-!          p_cur = 0d0 + p_d * p_step
+          p_d = p
+          p_cur = 0d0 + p_d * p_step
 
-!          s1 = 0d0
-!          s2 = 0d0
+          s1 = 0d0
+          s2 = 0d0
 
-!          do t = 1, N
+          do t = 1, N
 
-!                    if ((t .eq. 2) .or. ((t .le. 8) .and. (t .ge. 4))) cycle
-!                    if ((t .eq. 10) .or. (t .eq. 54) .or. (t .eq. 133)) cycle
-!                    if ((t .ge. 1541) .and. (t .le. 1546)) cycle
-!                    if ((t .ge. 2141) .and. (t .le. 2149)) cycle
-!                    if ((t .ge. 2425) .and. (t .le. 2426)) cycle
-!                    if ((t .ge. 2772) .and. (t .le. 2777)) cycle
-!                    if ((t .ge. 2807) .and. (t .le. 2809)) cycle
-!                    if ((t .ge. 2863) .and. (t .le. 2867)) cycle
-!                    if ((t .ge. 2896) .and. (t .le. 2897)) cycle
-!                    if (t .eq. 3004) cycle
-!                    if ((t .ge. 3117) .and. (t .le. 3123)) cycle
-!                    if ((t .ge. 3537) .and. (t .le. 3545)) cycle
-!                    if ((t .ge. 3551) .and. (t .le. 3556)) cycle
-!                    if ((t .ge. 3537) .and. (t .le. 3545)) cycle
-!                    if ((t .ge. 3586) .and. (t .le. 3594)) cycle
-!                    if ((t .ge. 3602) .and. (t .le. 3607)) cycle
-!                    if ((t .ge. 3795) .and. (t .le. 3801)) cycle
-!                    if ((t .ge. 3810) .and. (t .le. 3953)) cycle
-!                    if ((t .ge. 3961) .and. (t .le. 4026)) cycle
-!                    if ((t .ge. 3537) .and. (t .le. 3545)) cycle
-!                    if ((t .eq. 5284) .or. (t .eq. 5287)) cycle
-!                    if ((t .eq. 5613) .or. (t .eq. 5669)) cycle
-!     
-!                    t_d = t
-!                             
-!                    koef = 2d0 * pi * p_cur * t_d / (N_d - N_if)
-!!                    koef = 2d0 * pi * p_cur * t_d / N_d
-!                             
-!                    cos_value = dcos(koef)
-!                    sin_value = dsin(koef)
-!                             
-!                    ! Проверка на ошибку округления sin_value и cos_value
-!                    if (abs(cos_value) .le. 1e-3) cos_value = 0d0
-!                    if (abs(sin_value) .le. 1e-3) sin_value = 0d0       
-!                                                             
-!                    diff = (A(t,2) - x_mean)
-!                             
-!                    s1 = s1 + diff * cos_value
-!                    s2 = s2 + diff * sin_value
-!                             
-!          enddo
+               if (any(t .eq. N_if_array)) cycle
+     
+               t_d = t
+                             
+               koef = 2d0 * pi * p_cur * t_d / (N_d - N_if)
+!               koef = 2d0 * pi * p_cur * t_d / N_d
+                             
+               cos_value = dcos(koef)
+               sin_value = dsin(koef)
+                             
+               ! Проверка на ошибку округления sin_value и cos_value
+               if (abs(cos_value) .le. 1e-3) cos_value = 0d0
+               if (abs(sin_value) .le. 1e-3) sin_value = 0d0       
+                                                             
+               diff = (A(t,2) - x_mean)
+                             
+               s1 = s1 + diff * cos_value
+               s2 = s2 + diff * sin_value
+                             
+          enddo
 
-!          I_p(p) = (s1 * s1 + s2 * s2)/( (N_d - N_if) * pi)
-!!          I_p(p) = (s1 * s1 + s2 * s2)/(N_d * pi)
+          I_p(p) = (s1 * s1 + s2 * s2)/( (N_d - N_if) * pi)
+!          I_p(p) = (s1 * s1 + s2 * s2)/(N_d * pi)
 
-!          write(11,'(e16.7, 1x, e16.7, 1x, e16.7)') N_d/p_cur, p_cur/N_d, I_p(p)
+          write(11,'(e16.7, 1x, e16.7, 1x, e16.7)') N_d/p_cur, p_cur/N_d, I_p(p)
 
-!     enddo
-!     close(11)
+     enddo
+     close(11)
 
      deallocate(A, r, I_p, N_if_array)
 
