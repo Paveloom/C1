@@ -38,11 +38,15 @@ implicit none
      ! Указать число исключений
      N_if = 301
      
-     allocate(N_if_array(6))
+     allocate(N_if_array(N))
      
-     N_if_array = (/ 2, (i, i = 4,8) /)
+     N_if_array = (/ 2, (i, i = 4,8), 10, 54, 133, (i, i = 1541,1546), (i, i = 2141, 2149),&
+     & 2425, 2426, (i, i = 2772, 2777), (i, i = 2807, 2809), (i, i = 2863, 2867), 2896, 2897,&
+     & 3004, (i, i = 3117, 3123), (i, i = 3537, 3545), (i, i = 3551, 3556), (i, i = 3586, 3594),&
+     & (i, i = 3602, 3607), (i, i = 3795, 3801), (i, i = 3810, 3953), (i, i = 3961, 4026),&
+     & 5284, 5287, 5613, 5669 /)
      
-     write(*,*) N_if_array
+     write(*,'(i3,2x,i5,/)') (i, N_if_array(i), i = 1, 301)
 
      allocate(A(1:N,2)) ! Исходные данные
      allocate(r(1:N-1)) ! Для вычисления коррелограммы
@@ -62,28 +66,7 @@ implicit none
 
      do t = 1, N
      
-          if ((t .eq. 2) .or. ((t .le. 8) .and. (t .ge. 4))) cycle
-          if ((t .eq. 10) .or. (t .eq. 54) .or. (t .eq. 133)) cycle
-          if ((t .ge. 1541) .and. (t .le. 1546)) cycle
-          if ((t .ge. 2141) .and. (t .le. 2149)) cycle
-          if ((t .ge. 2425) .and. (t .le. 2426)) cycle
-          if ((t .ge. 2772) .and. (t .le. 2777)) cycle
-          if ((t .ge. 2807) .and. (t .le. 2809)) cycle
-          if ((t .ge. 2863) .and. (t .le. 2867)) cycle
-          if ((t .ge. 2896) .and. (t .le. 2897)) cycle
-          if (t .eq. 3004) cycle
-          if ((t .ge. 3117) .and. (t .le. 3123)) cycle
-          if ((t .ge. 3537) .and. (t .le. 3545)) cycle
-          if ((t .ge. 3551) .and. (t .le. 3556)) cycle
-          if ((t .ge. 3537) .and. (t .le. 3545)) cycle
-          if ((t .ge. 3586) .and. (t .le. 3594)) cycle
-          if ((t .ge. 3602) .and. (t .le. 3607)) cycle
-          if ((t .ge. 3795) .and. (t .le. 3801)) cycle
-          if ((t .ge. 3810) .and. (t .le. 3953)) cycle
-          if ((t .ge. 3961) .and. (t .le. 4026)) cycle
-          if ((t .ge. 3537) .and. (t .le. 3545)) cycle
-          if ((t .eq. 5284) .or. (t .eq. 5287)) cycle
-          if ((t .eq. 5613) .or. (t .eq. 5669)) cycle 
+          if (any(t .eq. N_if_array)) cycle
           
           x_mean = x_mean + A(t,2)
      
