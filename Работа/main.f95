@@ -38,12 +38,23 @@ implicit none
      ! Вспомогательные переменные
      integer k, t, i, j, p, ier
      real(8) k_d, N_d, p_d, j_d, p_num_d ! Овеществления
+     
+     ! Выбор рабочего диапазона частот
+     logical full_range ! Использовать полный или указанный рабочие диапазоны? (.true., если полный)
+     integer leftbound ! Левая граница рабочего диапазона частот
+     integer rightbound ! Праввая граница рабочего диапазона частот
 
      ! Указать размер выборки
      N = 5860
      
      ! Указать число исключений
      N_if = 301
+     
+     ! Использовать указанный диапазон частот для вычисления периодограммы 
+     ! или считать по полному диапазону?
+     full_range = .false.
+     
+     ! Настройки рабочего диапазона частот в разделе периодограмма
      
      ! Вычисление размера выборки с исключениями
      N_wif = N - N_if
@@ -156,13 +167,27 @@ implicit none
      p_num = 58600
      p_num_d = p_num
      p_step = N_d / p_num_d
-
+     
+     ! Указание рабочего диапазона частот (в первом условии)
+     
+     if (.not. full_range) then
+     
+          leftbound = 1
+          rightbound = 300
+     
+     else
+     
+          leftbound = 1
+          rightbound = p_num
+     
+     endif
+     
      ! Массив значений периодограммы
      allocate(I_p(1:p_num), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива I_p'
 
      open(11, file="output2")
-     do p = 1, p_num, 1
+     do p = leftbound, rightbound, 1
 
           p_d = p
           p_cur = 0d0 + p_d * p_step

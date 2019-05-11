@@ -1,46 +1,52 @@
 
-      # Настройки компиляции программ
-           comp := gfortran
-            opt := -c -Wall -Wtabs
-        pattern := f95
+     # Настройки компиляции программ
+     
+     comp := gfortran
+     opt := -c -Wall -Wtabs
+     pattern := f95
      allpattern := *.$(pattern)
      anypattern := %.$(pattern)
-         source := $(wildcard $(allpattern))
-            mod := $(patsubst $(anypattern), %.mod, $(source))
-            obj := $(patsubst $(anypattern), %.o, $(source))
+     source := $(wildcard $(allpattern))
+     mod := $(patsubst $(anypattern), %.mod, $(source))
+     obj := $(patsubst $(anypattern), %.o, $(source))
+     
+     # Заглушка на вывод сообщений указанными правилами
+     # (без указания имён подавляет вывод со стороны make-файла у всех правил)
+     .SILENT: 
 
-      # Блок правил для компиляции объектных файлов
+     # Блок правил для компиляции объектных файлов
       
-        main : $(obj)
+     main : $(obj)
 	       $(comp) $^ -o $@
 
-         %.o : %.f95
-	       $(comp) $(opt) $< -o $@
+     %.o : $(anypattern)
+	      $(comp) $(opt) $< -o $@
 
-       %.mod : %.f95
-	       $(comp) $(opt) $<
+     %.mod : $(anypattern)
+	        $(comp) $(opt) $<
 
-      # Блок правил-зависимостей (при необходимости)
+     # Блок правил-зависимостей (при необходимости)
 
-      # Блок правил для инициализации make-файла для сборки программы
+     # Блок правил для инициализации make-файла для сборки программы
       
-           input :
-	              touch input
+     input :
+	        touch input
       
-          result : main input
-	              time ./$<  < input > output
+     result : main input
+	         time ./$<  < input > output
 	        
-        result-r : main input
-		         rm output
-		         make result
-		         cat output
+     result-r : main input
+		      rm output
+		      make result
+		      cat output
 
-      # Блок правил для очистки директории
-        clean :
-	 rm -f $(obj) $(mod) main
+     # Блок правил для очистки директории
+     
+     clean :
+	        rm -f $(obj) $(mod) main
 
-        clean-all :
-	 rm -f *.o *.mod main *.eps *.dat result
+     clean-all :
+	            rm -f *.o *.mod main *.eps *.dat result
 
 
 
