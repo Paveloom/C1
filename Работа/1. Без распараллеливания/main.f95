@@ -52,7 +52,7 @@ implicit none
      
      ! Использовать указанный диапазон частот для вычисления периодограммы 
      ! или считать по полному диапазону?
-     full_range = .false.
+     full_range = .true.
      
      ! Настройки рабочего диапазона частот в разделе периодограмма
      
@@ -173,7 +173,7 @@ implicit none
      if (.not. full_range) then
      
           leftbound = 1
-          rightbound = 300
+          rightbound = 301
      
      else
      
@@ -194,7 +194,7 @@ implicit none
 
           s1 = 0d0
           s2 = 0d0
-
+          
           do t = 1, N_wif
 
                j = N_index_array(t)
