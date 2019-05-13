@@ -14,11 +14,13 @@ implicit none
      ! Массив индексов без индексов исключений
      integer(4), allocatable, dimension(:) :: N_index_array
      
+     real(8) x_mean    ! Среднее значение x
+     real(8) koef_mean ! Коэффициент 1/N
+     
      ! Коррелограмма:
 
-     real(8), allocatable, dimension(:) :: r ! Вектор коэффициентов корреляции
-     real(8) x_mean                          ! Среднее значение x
-     real(8) koef_mean                       ! Коэффициент 1/N
+     real(8), allocatable, dimension(:) :: r     ! Вектор коэффициентов корреляции
+     real(8), allocatable, dimension(:) :: k_arr ! Вектор значений множителей k
 
      ! Периодограмма:
 
@@ -52,17 +54,19 @@ implicit none
      integer(4) p_partion_size            ! Размер порции
      integer(4) p_partion_size_mod        ! Остаток от деления p_size на mpiSize
      integer(4) p_leftbound, p_rightbound ! Границы индексов для данного ранга
-     integer(4) p_partion_shift           ! Величина mpiRank * p_partion_size     
+     integer(4) p_partion_shift           ! Величина mpiRank * p_partion_size
+     
+     integer(4) k_partion_size            ! Размер порции
+     integer(4) k_partion_size_mod        ! Остаток от деления k_size на mpiSize
+     integer(4) k_leftbound, k_rightbound ! Границы индексов для данного ранга
+     integer(4) k_partion_shift           ! Величина mpiRank * k_partion_size
+     
+     ! Вспомогательные переменные при обмене сообщениями
+     integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i  
 
      ! Вспомогательные переменные MPI
      integer(4) mpiErr, mpiSize, mpiRank
      integer(4) ierr, status
-     integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i
-!     integer(4) f1 ! Указатели (дескрипторы) файлов
-!     integer(4) numread
-!     
-!     integer(kind=MPI_OFFSET_KIND) disp
-!     integer (kind=MPI_OFFSET_KIND) zero
 
      ! Указать размер выборки
      N = 5860
@@ -112,21 +116,13 @@ implicit none
      
      ! Выделение памяти под рабочие массивы
      
-     ! Исходные данные
+     ! Массив исходных данных
      allocate(A(1:N,2), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива A'
-     
-     ! Для вычисления коррелограммы
-     allocate(r(1:N-1), stat = ier)
-     if (ier .ne. 0) stop 'Не удалось выделить память для массива r'
 
      ! Считывание исходных данных
      
      call mpi_init(mpiErr)
-     
-!     call MPI_FILE_OPEN(MPI_COMM_WORLD, 'input', MPI_MODE_RDONLY, MPI_INFO_NULL, f1, ierr)
-!     
-!     call MPI_FILE_SET_VIEW(f1, disp, MPI_REAL8, MPI_REAL8, 'native', MPI_INFO_NULL, ierr)
 
      call mpi_comm_size(MPI_COMM_WORLD, mpiSize, mpiErr)
      call mpi_comm_rank(MPI_COMM_WORLD, mpiRank, mpiErr)
@@ -134,41 +130,14 @@ implicit none
      if (mpiRank .eq. 0) then
      
      do i = 1, N
-!        
+        
                  read(*,*) A(i,1), A(i,2)
-!                call MPI_FILE_READ(f1, A(1,:), 1, MPI_REAL8, status, ierr)
-!                write(*,*) A(1,:)
+
      enddo
      
      endif
      
-     call mpi_bcast(A, N*2, MPI_REAL8, 0, MPI_COMM_WORLD, ierr) 
-     
-!     call MPI_FILE_CLOSE(f1, ierr)
-
-!      open(9, file = "input", access="stream", form='unformatted')
-!      
-!          call MPI_FILE_READ_ALL(9, A, N*2, MPI_REAL8, status, ierr)
-!          write(*,*) A(1,1)
-!      
-!      close(9)
-     
-!     call MPI_FILE_OPEN(MPI_COMM_WORLD, 'input', MPI_MODE_RDONLY, MPI_INFO_NULL, f1, ierr)
-!     
-!     zero = 0
-!     
-!     call MPI_FILE_SET_VIEW(f1, zero, MPI_REAL8, MPI_REAL8, 'native', MPI_INFO_NULL, ierr)
-!     
-!     i = 1
-!          
-!     do
-!     
-!     call MPI_FILE_READ(f1, A, N*2, MPI_REAL8, status, ierr)
-!     i = i + numread
-!     if ( numread .lt. N ) exit
-!     
-!     enddo
-!     
+     call mpi_bcast(A, N*2, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
 
      ! Вычисление среднего значения выборки
 
@@ -187,12 +156,46 @@ implicit none
 
      x_mean = koef_mean * x_mean
 
-     ! Вычисление коррелограммы
-
-     open(10, file="output1")
-     do k = 1, N - 1
+     ! [Вычисление коррелограммы прямым методом]
+     
+     ! Массив коэффициентов автокорреляции
+     allocate(r(1:N-1), stat = ier)
+     if (ier .ne. 0) stop 'Не удалось выделить память для массива r'
+     
+     allocate(k_arr(1:N-1), stat = ier)
+     if (ier .ne. 0) stop 'Не удалось выделить память для массива k_arr'
+     
+     ! Коррелограмма: вычисление размеров порции
+     
+     k_partion_size_mod = mod(N-1,mpiSize)
+     
+     if (k_partion_size_mod .eq. 0) then
+               
+          k_partion_size = (N - 1) / mpiSize
+          k_partion_shift = mpiRank * k_partion_size
+               
+     elseif (mpiRank .eq. mpiSize - 1) then
+               
+          k_partion_size = ((N - 1) + (mpiSize - k_partion_size_mod)) / mpiSize - (mpiSize - k_partion_size_mod)
+          k_partion_shift = mpiRank * (k_partion_size + (mpiSize - k_partion_size_mod))
+          
+     else
+     
+          k_partion_size = ((N - 1) + (mpiSize - k_partion_size_mod)) / mpiSize
+          k_partion_shift = mpiRank * k_partion_size
+          
+     endif
+     
+     ! Коррелограмма: вычисление порции
+     
+     k_leftbound = 1 + k_partion_shift
+     k_rightbound = k_partion_size + k_partion_shift
+     
+     do k = k_leftbound, k_rightbound
  
           k_d = k
+          
+          k_arr(k) = k_d
                 
           s1 = 0d0
   
@@ -216,17 +219,56 @@ implicit none
 
           r(k) = s1 / s2
 
-          write(10,'(e28.20, 1x, e28.20)') k_d, r(k)
-
      enddo
-     close(10)
+     
+     ! Коррелограмма: передача всех порций процессу 0
+     
+     if (mpiRank .gt. 0) then
+     
+          call mpi_send(r(k_leftbound:k_rightbound), k_partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(k_arr(k_leftbound:k_rightbound), k_partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          
+     else
+     
+          do i = 1, mpiSize - 1
+               
+               send_leftbound = 1 + i * k_partion_size
+               
+               if (i .eq. mpiSize - 1 .and. k_partion_size_mod .ne. 0) then
+               
+                    send_rightbound = k_partion_size + i * k_partion_size - (mpiSize - k_partion_size_mod)
+               
+               else
+               
+                    send_rightbound = k_partion_size + i * k_partion_size
+               
+               endif
+               
+               call mpi_recv(r(send_leftbound:send_rightbound), k_partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               call mpi_recv(k_arr(send_leftbound:send_rightbound), k_partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+
+          enddo
+          
+     endif
+     
+     ! Коррелограмма: вывод результата в файл
+     
+     if (mpiRank .eq. 0) then
+     
+          open(10, file="output1")
+          
+               write(10,'(e28.20, 1x, e28.20)') (k_arr(i), r(i), i = 1, N - 1)
+          
+          close(10)
+     
+     endif
 
      ! Определение pi
      pi = 4d0*datan(1d0)
 
-     ! Вычисление периодограммы вне зависимости от коэффициентов автокорреляции
+     ! [Вычисление периодограммы вне зависимости от коэффициентов автокорреляции]
 
-     p_num = 58600
+     p_num = 586000
      p_num_d = p_num
      p_step = N_d / p_num_d
      
@@ -252,7 +294,7 @@ implicit none
      allocate(p_arr(leftbound:rightbound), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива p_arr'
 
-     ! Вычисление размера порции
+     ! Периодограмма: вычисление размера порции
      
      p_size = rightbound - leftbound + 1
      
@@ -275,7 +317,7 @@ implicit none
           
      endif
      
-     ! Заполнение процесcом своей порции
+     ! Периодограмма: заполнение процесcом своей порции
      
      p_leftbound = leftbound + p_partion_shift
      p_rightbound = leftbound + p_partion_size + p_partion_shift - 1
@@ -318,7 +360,7 @@ implicit none
 
      enddo
 
-     ! Передача всех порций процессу 0
+     ! Периодограмма: передача всех порций процессу 0
      
      if (mpiRank .gt. 0) then
      
@@ -348,6 +390,8 @@ implicit none
           
      endif
      
+     ! Периодограмма: вывод результата в файл
+     
      if (mpiRank .eq. 0) then
      
           open(11, file="output2")
@@ -360,6 +404,6 @@ implicit none
      
      call mpi_finalize(mpiErr)
 
-     deallocate(A, r, I_p, N_if_array, N_index_array, p_arr)
+     deallocate(A, r, I_p, N_if_array, N_index_array, p_arr, k_arr)
 
 end
