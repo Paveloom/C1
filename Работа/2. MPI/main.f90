@@ -4,9 +4,9 @@ implicit none
 
      real(8), allocatable, dimension(:,:) :: A ! Матрица исходных данных
      
-     integer N     ! Размер выборки
-     integer N_if  ! Число исключений
-     integer N_wif ! Размер выборки с исключениями (N - N_if)                      
+     integer(4) N     ! Размер выборки
+     integer(4) N_if  ! Число исключений
+     integer(4) N_wif ! Размер выборки с исключениями (N - N_if)                      
      
      ! Массив индексов-исключений
      integer(4), allocatable, dimension(:) :: N_if_array
@@ -15,6 +15,7 @@ implicit none
      integer(4), allocatable, dimension(:) :: N_index_array
      
      real(8) x_mean    ! Среднее значение x
+     real(8) p_x_mean  ! Порция от x_mean
      real(8) koef_mean ! Коэффициент 1/N
      
      ! Коррелограмма:
@@ -41,25 +42,20 @@ implicit none
      real(8) pi ! Число pi
      
      ! Вспомогательные переменные
-     integer k, t, i, j, p, ier
-     real(8) k_d, N_d, p_d, j_d, p_num_d ! Овеществления
+     integer(4) k, t, i, j, p, ier
+     real(8)    k_d, N_d, N_wif_d, p_d, j_d, p_num_d ! Овеществления
      
      ! Выбор рабочего диапазона частот
      logical full_range ! Использовать полный или указанный рабочие диапазоны? (.true., если полный)
-     integer leftbound ! Левая граница рабочего диапазона частот
-     integer rightbound ! Праввая граница рабочего диапазона частот
+     integer(4) leftbound ! Левая граница рабочего диапазона частот
+     integer(4) rightbound ! Праввая граница рабочего диапазона частот
      
      ! Переменные для деления первого подпространства итераций на порции
      integer(4) p_size                    ! Длина рабочего диапазона частот
-     integer(4) p_partion_size            ! Размер порции
-     integer(4) p_partion_size_mod        ! Остаток от деления p_size на mpiSize
+     integer(4) partion_size              ! Размер порции
+     integer(4) partion_size_mod          ! Остаток от деления p_size (или N) на mpiSize
      integer(4) p_leftbound, p_rightbound ! Границы индексов для данного ранга
-     integer(4) p_partion_shift           ! Величина mpiRank * p_partion_size
-     
-     integer(4) k_partion_size            ! Размер порции
-     integer(4) k_partion_size_mod        ! Остаток от деления k_size на mpiSize
-     integer(4) k_leftbound, k_rightbound ! Границы индексов для данного ранга
-     integer(4) k_partion_shift           ! Величина mpiRank * k_partion_size
+     integer(4) partion_shift             ! Величина mpiRank * partion_size
      
      ! Вспомогательные переменные при обмене сообщениями
      integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i  
@@ -67,6 +63,8 @@ implicit none
      ! Вспомогательные переменные MPI
      integer(4) mpiErr, mpiSize, mpiRank
      integer(4) ierr, status
+     
+     call mpi_init(mpiErr)
 
      ! Указать размер выборки
      N = 5860
@@ -121,41 +119,66 @@ implicit none
      if (ier .ne. 0) stop 'Не удалось выделить память для массива A'
 
      ! Считывание исходных данных
-     
-     call mpi_init(mpiErr)
 
      call mpi_comm_size(MPI_COMM_WORLD, mpiSize, mpiErr)
      call mpi_comm_rank(MPI_COMM_WORLD, mpiRank, mpiErr)
 
-     if (mpiRank .eq. 0) then
-     
+     open(mpiRank + 12, file = 'input')
      do i = 1, N
         
-                 read(*,*) A(i,1), A(i,2)
+                 read(mpiRank + 12,*) A(i,1), A(i,2)
 
      enddo
+     close(mpiRank + 12)
      
+     ! [Вычисление среднего значения выборки]
+     
+     ! Среднее выборки: вычисление размеров порции
+     
+     partion_size_mod = mod(N_wif,mpiSize)
+     
+     if (partion_size_mod .eq. 0) then
+               
+          partion_size = (N_wif / mpiSize)
+          partion_shift = mpiRank * partion_size
+               
+     elseif (mpiRank .eq. mpiSize - 1) then
+               
+          partion_size = (N_wif + (mpiSize - partion_size_mod)) / mpiSize - (mpiSize - partion_size_mod)
+          partion_shift = mpiRank * (partion_size + (mpiSize - partion_size_mod))
+          
+     else
+     
+          partion_size = (N_wif + (mpiSize - partion_size_mod)) / mpiSize
+          partion_shift = mpiRank * partion_size
+          
      endif
+
+     ! Среднее выборки: вычисление порции
      
-     call mpi_bcast(A, N*2, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+     p_leftbound = 1 + partion_shift
+     p_rightbound = partion_size + partion_shift
 
-     ! Вычисление среднего значения выборки
-
-     x_mean = 0d0
+     p_x_mean = 0d0
 
      N_d = N
-     koef_mean = 1d0/(N_d - N_if)
-
-     do t = 1, N_wif
+     N_wif_d = N_wif
+     koef_mean = 1d0 / N_wif_d
+     
+     do t = p_leftbound, p_rightbound
      
           j = N_index_array(t)
      
-          x_mean = x_mean + A(j,2)
+          p_x_mean = p_x_mean + A(j,2)
      
      enddo
 
-     x_mean = koef_mean * x_mean
-
+     p_x_mean = koef_mean * p_x_mean
+     
+     ! Среднее выборки: вычисление суммы
+     
+     call mpi_allreduce(p_x_mean, x_mean, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
+     
      ! [Вычисление коррелограммы прямым методом]
      
      ! Массив коэффициентов автокорреляции
@@ -167,31 +190,31 @@ implicit none
      
      ! Коррелограмма: вычисление размеров порции
      
-     k_partion_size_mod = mod(N-1,mpiSize)
+     partion_size_mod = mod(N-1,mpiSize)
      
-     if (k_partion_size_mod .eq. 0) then
+     if (partion_size_mod .eq. 0) then
                
-          k_partion_size = (N - 1) / mpiSize
-          k_partion_shift = mpiRank * k_partion_size
+          partion_size = (N - 1) / mpiSize
+          partion_shift = mpiRank * partion_size
                
      elseif (mpiRank .eq. mpiSize - 1) then
                
-          k_partion_size = ((N - 1) + (mpiSize - k_partion_size_mod)) / mpiSize - (mpiSize - k_partion_size_mod)
-          k_partion_shift = mpiRank * (k_partion_size + (mpiSize - k_partion_size_mod))
+          partion_size = ((N - 1) + (mpiSize - partion_size_mod)) / mpiSize - (mpiSize - partion_size_mod)
+          partion_shift = mpiRank * (partion_size + (mpiSize - partion_size_mod))
           
      else
      
-          k_partion_size = ((N - 1) + (mpiSize - k_partion_size_mod)) / mpiSize
-          k_partion_shift = mpiRank * k_partion_size
+          partion_size = ((N - 1) + (mpiSize - partion_size_mod)) / mpiSize
+          partion_shift = mpiRank * partion_size
           
      endif
      
      ! Коррелограмма: вычисление порции
      
-     k_leftbound = 1 + k_partion_shift
-     k_rightbound = k_partion_size + k_partion_shift
+     p_leftbound = 1 + partion_shift
+     p_rightbound = partion_size + partion_shift
      
-     do k = k_leftbound, k_rightbound
+     do k = p_leftbound, p_rightbound
  
           k_d = k
           
@@ -225,27 +248,27 @@ implicit none
      
      if (mpiRank .gt. 0) then
      
-          call mpi_send(r(k_leftbound:k_rightbound), k_partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
-          call mpi_send(k_arr(k_leftbound:k_rightbound), k_partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(r(p_leftbound:p_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(k_arr(p_leftbound:p_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
           
      else
      
           do i = 1, mpiSize - 1
                
-               send_leftbound = 1 + i * k_partion_size
+               send_leftbound = 1 + i * partion_size
                
-               if (i .eq. mpiSize - 1 .and. k_partion_size_mod .ne. 0) then
+               if (i .eq. mpiSize - 1 .and. partion_size_mod .ne. 0) then
                
-                    send_rightbound = k_partion_size + i * k_partion_size - (mpiSize - k_partion_size_mod)
+                    send_rightbound = partion_size + i * partion_size - (mpiSize - partion_size_mod)
                
                else
                
-                    send_rightbound = k_partion_size + i * k_partion_size
+                    send_rightbound = partion_size + i * partion_size
                
                endif
                
-               call mpi_recv(r(send_leftbound:send_rightbound), k_partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
-               call mpi_recv(k_arr(send_leftbound:send_rightbound), k_partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               call mpi_recv(r(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               call mpi_recv(k_arr(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
 
           enddo
           
@@ -257,7 +280,7 @@ implicit none
      
           open(10, file="output1")
           
-               write(10,'(e28.20, 1x, e28.20)') (k_arr(i), r(i), i = 1, N - 1)
+               write(10,'(e16.7, 1x, e16.7)') (k_arr(i), r(i), i = 1, N - 1)
           
           close(10)
      
@@ -268,7 +291,7 @@ implicit none
 
      ! [Вычисление периодограммы вне зависимости от коэффициентов автокорреляции]
 
-     p_num = 586000
+     p_num = 58600
      p_num_d = p_num
      p_step = N_d / p_num_d
      
@@ -298,29 +321,29 @@ implicit none
      
      p_size = rightbound - leftbound + 1
      
-     p_partion_size_mod = mod(p_size,mpiSize)
+     partion_size_mod = mod(p_size,mpiSize)
      
-     if (p_partion_size_mod .eq. 0) then
+     if (partion_size_mod .eq. 0) then
                
-          p_partion_size = p_size / mpiSize
-          p_partion_shift = mpiRank * p_partion_size
+          partion_size = p_size / mpiSize
+          partion_shift = mpiRank * partion_size
                
      elseif (mpiRank .eq. mpiSize - 1) then
                
-          p_partion_size = (p_size + (mpiSize - p_partion_size_mod)) / mpiSize - (mpiSize - p_partion_size_mod)
-          p_partion_shift = mpiRank * (p_partion_size + (mpiSize - p_partion_size_mod))
+          partion_size = (p_size + (mpiSize - partion_size_mod)) / mpiSize - (mpiSize - partion_size_mod)
+          partion_shift = mpiRank * (partion_size + (mpiSize - partion_size_mod))
           
      else
      
-          p_partion_size = (p_size + (mpiSize - p_partion_size_mod)) / mpiSize
-          p_partion_shift = mpiRank * p_partion_size
+          partion_size = (p_size + (mpiSize - partion_size_mod)) / mpiSize
+          partion_shift = mpiRank * partion_size
           
      endif
      
      ! Периодограмма: заполнение процесcом своей порции
      
-     p_leftbound = leftbound + p_partion_shift
-     p_rightbound = leftbound + p_partion_size + p_partion_shift - 1
+     p_leftbound = leftbound + partion_shift
+     p_rightbound = leftbound + partion_size + partion_shift - 1
      
      do p = p_leftbound, p_rightbound, 1
      
@@ -356,6 +379,9 @@ implicit none
           enddo
 
           I_p(p) = (s1 * s1 + s2 * s2)/( (N_d - N_if) * pi)
+          
+          if (abs(I_p(p)) .le. 1e-15) I_p(p) = 0d0
+          
 !          I_p(p) = (s1 * s1 + s2 * s2)/(N_d * pi)
 
      enddo
@@ -364,27 +390,27 @@ implicit none
      
      if (mpiRank .gt. 0) then
      
-          call mpi_send(I_p(p_leftbound:p_rightbound), p_partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
-          call mpi_send(p_arr(p_leftbound:p_rightbound), p_partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(I_p(p_leftbound:p_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(p_arr(p_leftbound:p_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
           
      else
      
           do i = 1, mpiSize - 1
                
-               send_leftbound = leftbound + i * p_partion_size
+               send_leftbound = leftbound + i * partion_size
                
-               if (i .eq. mpiSize - 1 .and. p_partion_size_mod .ne. 0) then
+               if (i .eq. mpiSize - 1 .and. partion_size_mod .ne. 0) then
                
-                    send_rightbound = leftbound + p_partion_size + i * p_partion_size - 1 - (mpiSize - p_partion_size_mod)
+                    send_rightbound = leftbound + partion_size + i * partion_size - 1 - (mpiSize - partion_size_mod)
                
                else
                
-                    send_rightbound = leftbound + p_partion_size + i * p_partion_size - 1
+                    send_rightbound = leftbound + partion_size + i * partion_size - 1
                
                endif
                
-               call mpi_recv(I_p(send_leftbound:send_rightbound), p_partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
-               call mpi_recv(p_arr(send_leftbound:send_rightbound), p_partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)     
+               call mpi_recv(I_p(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               call mpi_recv(p_arr(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)     
 
           enddo
           

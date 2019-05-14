@@ -154,7 +154,7 @@ implicit none
 
           r(k) = s1 / s2
 
-          write(10,'(e28.20, 1x, e28.20)') k_d, r(k)
+          write(10,'(e16.7, 1x, e16.7)') k_d, r(k)
 
      enddo
      close(10)
@@ -164,7 +164,7 @@ implicit none
 
      ! Вычисление периодограммы вне зависимости от коэффициентов автокорреляции
 
-     p_num = 586000
+     p_num = 58600
      p_num_d = p_num
      p_step = N_d / p_num_d
      
@@ -219,6 +219,9 @@ implicit none
           enddo
 
           I_p(p) = (s1 * s1 + s2 * s2)/( (N_d - N_if) * pi)
+          
+          if (abs(I_p(p)) .le. 1e-15) I_p(p) = 0d0
+          
 !          I_p(p) = (s1 * s1 + s2 * s2)/(N_d * pi)
 
           write(11,'(e16.7, 1x, e16.7, 1x, e16.7)') N_d/p_cur, p_cur/N_d, I_p(p)

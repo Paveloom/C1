@@ -33,7 +33,7 @@
 	        touch input
       
      result : main input
-	         time mpiexec -np 4 ./$< < input > output
+	         time mpiexec -np 4 ./$< > output
 	        
      result-r : main input
 		      rm output
