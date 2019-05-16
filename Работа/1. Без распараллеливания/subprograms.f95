@@ -1,0 +1,225 @@
+module subprograms
+implicit none
+
+     contains
+
+     ! [Вычисление среднего значения выборки]
+     subroutine F1_mean(A, x_mean, N_index_array, N_wif, N)
+     implicit none
+     
+     integer(4), intent(in) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений
+     integer(4), intent(in) :: N_wif                    ! Размер выборки с исключениями (N - N_if)
+     integer(4), intent(in) :: N                        ! Размер выборки
+     real(8), intent(in)    :: A(0:N-1,2)               ! Матрица исходных данных
+     real(8), intent(out)   :: x_mean                   ! Среднее значение выборки с учётом исключений
+     
+     integer(4) t, j ! Вспомогательные переменные
+     
+     x_mean = 0d0
+
+     do t = 0, N_wif - 1
+
+          j = N_index_array(t)
+
+          x_mean = x_mean + A(j,2)
+
+     enddo
+
+     x_mean = x_mean / N_wif
+     
+     end subroutine
+     
+     
+     ! [Вычисление коррелограммы прямым способом]
+     subroutine F2_correlogram_direct(A, x_mean, N)
+     implicit none
+     
+     integer(4), intent(in) :: N       ! Размер выборки
+     real(8), intent(in) :: A(0:N-1,2) ! Матрица исходных данных
+     real(8), intent(in) :: x_mean     ! Среднее значение выборки с учётом исключений
+     
+     integer(4) t, k ! Вспомогательные переменные
+     real(8) k_d     ! Овеществление k
+     real(8) s1, s2  ! Временные держатели сумм для элементов выражений
+     real(8) diff    ! Разность (A(t,2) - x_mean)
+     
+     real(8) r(0:N-1) ! Вектор значений коррелограммы
+     
+     s2 = 0d0
+     
+     do t = 0, N - 1
+
+          diff = (A(t,2) - x_mean)
+
+          s2 = s2 + diff * diff
+
+     enddo
+     
+     open(10, file="output1")
+     do k = 0, N - 1
+
+          k_d = k
+
+          s1 = 0d0
+
+          do t = 0, N - k - 1
+
+               s1 = s1 + (A(t,2) - x_mean) * (A(t+k,2) - x_mean)
+
+          enddo
+
+          r(k) = s1 / s2
+
+          write(10,'(e16.7, 1x, e16.7)') k_d, r(k)
+
+     enddo
+     close(10)
+     
+     end subroutine
+
+
+     ! [Вычисление периодограммы]
+     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_index_array, N, N_d, N_wif, x_mean, pi, I_p)
+     implicit none
+     
+     real(8), intent(out) :: I_p(leftbound:rightbound) ! Массив значений периодограммы
+     
+     integer(4), intent(in) :: leftbound, rightbound    ! Границы рабочего диапазона частот
+     integer(4), intent(in) :: N                        ! Размер выборки
+     integer(4), intent(in) :: N_wif                    ! Размер выборки с исключениями (N - N_if)
+     integer(4), intent(in) :: N_index_array(0:N_wif-1) ! Массив индексов с учётом исключений
+     
+     real(8), intent(in)    :: A(0:N-1,2)  ! Матрица исходных данных
+     real(8), intent(in)    :: p_step      ! Шаг дискретизации частот
+     real(8), intent(in)    :: x_mean      ! Среднее значение выборки с учётом исключений
+     real(8), intent(in)    :: pi          ! Число pi
+     real(8), intent(in)    :: N_d         ! Овеществление N
+     real(8), intent(in)    :: leftbound_d ! Овеществление leftbound
+     
+     ! Овеществления
+     real(8) p_d, j_d
+     
+     integer(4) p, t, j ! Вспомогательные переменные
+     
+     real(8) s1, s2    ! Временные держатели сумм для элементов выражений
+     real(8) diff      ! Разность (A(j,2) - x_mean)
+     real(8) p_cur     ! Текущее значение p
+     real(8) koef      ! Аргумент тригонометрических функций
+     real(8) cos_value ! Значение косинуса от аргумента koef
+     real(8) sin_value ! Значение синуса от аргумента koef
+     
+     open(11, file="output2")
+     do p = leftbound, rightbound, 1
+
+          p_d = p
+          p_cur = leftbound_d - 1d0 + p_d * p_step
+          
+          s1 = 0d0
+          s2 = 0d0
+
+          do t = 0, N_wif - 1
+
+               j = N_index_array(t)
+
+               j_d = j
+
+               koef = 2d0 * pi * p_cur * j_d / N_wif
+
+               cos_value = dcos(koef)
+               sin_value = dsin(koef)
+
+               ! Проверка на ошибку округления sin_value и cos_value
+               if (abs(cos_value) .le. 1e-3) cos_value = 0d0
+               if (abs(sin_value) .le. 1e-3) sin_value = 0d0
+
+               diff = (A(j,2) - x_mean)
+
+               s1 = s1 + diff * cos_value
+               s2 = s2 + diff * sin_value
+
+          enddo
+
+          I_p(p) = (s1 * s1 + s2 * s2) / ( N_wif * pi )
+          
+          if (abs(I_p(p)) .le. 1e-15) I_p(p) = 0d0
+
+          write(11,'(e16.7, 1x, e16.7, 1x, e16.7)') N_d / p_cur, p_cur / N_d, I_p(p)
+
+     enddo
+     close(11)
+     
+     end subroutine
+     
+     
+     ! [Вычисление коррелограммы через обратное преобразование Фурье к периодограмме]
+     subroutine F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_num, p_step, t_koef, N, N_d, pi)
+     implicit none
+     
+     integer(4), intent(in) :: p_num                     ! Общее число множителей p
+     integer(4), intent(in) :: N                         ! Размер выборки
+     integer(4), intent(in) :: t_koef                    ! Множитель дискретизации периодов
+     integer(4), intent(in) :: leftbound, rightbound     ! Границы рабочего диапазона частот
+     real(8), intent(in)    :: I_p(leftbound:rightbound) ! Массив значений периодограммы
+     real(8), intent(in)    :: p_step                    ! Шаг дискретизации частот
+     real(8), intent(in)    :: N_d                       ! Овеществление N
+     real(8), intent(in)    :: leftbound_d               ! Овеществление leftbound
+     real(8), intent(in)    :: pi                        ! Число pi
+     
+     ! Овеществления
+     real(8) p_d, t_d
+     
+     integer(4) p, t   ! Вспомогательные переменные
+     real(8) s1, s2    ! Временные держатели сумм для элементов выражений
+     real(8) p_cur     ! Текущее значение p
+     real(8) t_cur     ! Текущее значение t
+     real(8) koef      ! Аргумент тригонометрических функций
+     real(8) cos_value ! Значение косинуса от аргумента koef
+     
+     real(8) C(0:t_koef*(p_num - 10)) ! Вектор значений коррелограммы
+     
+     s2 = 0d0
+     
+     do p = leftbound, rightbound - 1, 1
+               
+               s2 = s2 + I_p(p)
+
+     enddo
+     
+     open(12, file = 'output3')
+     do t = 0, t_koef * (N - 1), 1
+     
+          t_d = t
+          t_cur = 0d0 + t_d / t_koef
+!          t_cur = t
+          
+          s1 = 0d0
+          
+          do p = leftbound, rightbound - 1, 1
+
+               p_d = p
+                
+               p_cur = leftbound_d - 1d0 + p_d * p_step
+          
+               koef = 2d0 * pi * p_cur * t_cur / N_d
+
+               cos_value = dcos(koef)
+
+               ! Проверка на ошибку округления sin_value и cos_value
+               if (abs(cos_value) .le. 1e-3) cos_value = 0d0
+               
+               s1 = s1 + I_p(p) * cos_value
+
+          enddo
+          
+          C(t) = s1 * N_d / (N_d - t_cur) / s2
+
+          if (abs(C(t)) .le. 1e-15) C(t) = 0d0
+
+          write(12,'(e16.7, 1x, e16.7)') t_cur, C(t)
+     
+     enddo     
+     close(12)
+     
+     end subroutine
+     
+end module

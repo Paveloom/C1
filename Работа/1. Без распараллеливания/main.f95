@@ -1,62 +1,47 @@
 program main
+use subprograms
 implicit none
+
+     ! Общие переменные
 
      real(8), allocatable, dimension(:,:) :: A ! Матрица исходных данных
 
-     integer N     ! Размер выборки
-     integer N_if  ! Число исключений
-     integer N_wif ! Размер выборки с исключениями (N - N_if)
+     integer(4) N      ! Размер выборки
+     integer(4) N_if   ! Число исключений
+     integer(4) N_wif  ! Размер выборки с исключениями (N - N_if)
+     real(8)    x_mean ! Среднее значение выборки с учётом исключений
+     real(8)    pi     ! Число pi
 
      ! Массив индексов-исключений
      integer(4), allocatable, dimension(:) :: N_if_array
 
-     ! Массив индексов без индексов исключений
+     ! Массив индексов с учётом исключений
      integer(4), allocatable, dimension(:) :: N_index_array
-
-     ! Коррелограмма [прямой метод]:
-
-     real(8), allocatable, dimension(:) :: r ! Вектор коэффициентов корреляции
-     real(8) x_mean                          ! Среднее значение x
-     real(8) koef_mean                       ! Коэффициент 1/N
 
      ! Периодограмма:
 
-     real(8), allocatable, dimension(:) :: I_p ! Вектор значений периодограммы
-     real(8), allocatable, dimension(:) :: nu  ! Вектор частот
-     real(8) p_step                            ! Шаг дискретизации частот
-     integer p_num                             ! Общее число множителей p
-     real(8) p_cur                             ! Текущее значение p
-
-     real(8) koef                 ! Коэффициент для тригонометрических функций
-     real(8) cos_value, sin_value ! Вычисленные значения косинуса и синуса
-     real(8) diff                 ! Разность (A(t,2) - x_mean)
+     real(8), allocatable, dimension(:) :: I_p ! Массив значений периодограммы
      
-     ! Коррелограмма [обратное преобразование Фурье к периодограмме]:
+     real(8) p_step ! Шаг дискретизации частот
+     integer p_num  ! Общее число множителей p
      
-     real(8), allocatable, dimension(:) :: C ! Вектор значений корреляционной функции
-     
-     integer(4) cut_p_num ! Число множителей p с учетом вырезания высоких частот (указывается)
-     real(8)    cut_N     ! Число множителей p с учетом вырезания высоких частот и смещением
-     real(8)    t_cur     ! Текущее значение t
-
-     ! Общие переменные
-
-     real(8) s1, s2 ! Временные суммы для элементов выражений
-     real(8) pi ! Число pi
+     ! Коррелограмма (через обратное преобразование)
+     integer(4) t_koef ! Множитель дискретизации периодов
 
      ! Вспомогательные переменные
-     integer k, t, i, j, p, ier
+     integer k, i, ier
      
      ! Овеществления
-     real(8) k_d, N_d, p_d, j_d, t_d, p_num_d, cut_p_num_d, leftbound_d, rightbound_d
+     real(8) N_d, p_num_d, leftbound_d
 
-     ! Выбор рабочего диапазона частот
-     logical full_range ! Использовать полный или указанный рабочие диапазоны? (.true., если полный)
-     integer leftbound  ! Левая граница рабочего диапазона частот
-     integer rightbound ! Праввая граница рабочего диапазона частот
+     ! Переменные для выбора рабочего диапазона частот
+     logical full_range    ! Использовать полный или указанный рабочие диапазоны? (.true., если полный)
+     integer(4) leftbound  ! Левая граница рабочего диапазона частот
+     integer(4) rightbound ! Праввая граница рабочего диапазона частот
 
      ! Указать размер выборки
      N = 5860
+     N_d = N
 
      ! Указать число исключений
      N_if = 301
@@ -107,10 +92,6 @@ implicit none
      allocate(A(0:N-1,2), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива A'
 
-     ! Для вычисления коррелограммы
-     allocate(r(0:N-1), stat = ier)
-     if (ier .ne. 0) stop 'Не удалось выделить память для массива r'
-
      ! Считывание исходных данных
 
         do i = 0, N - 1
@@ -119,63 +100,16 @@ implicit none
 
         enddo
         
-     ! Вычисление среднего значения выборки
+     ! [Вычисление среднего значения выборки]
+     call F1_mean(A, x_mean, N_index_array, N_wif, N)
 
-     x_mean = 0d0
-
-     N_d = N
-     koef_mean = 1d0 / N_wif
-
-     do t = 0, N_wif - 1
-
-          j = N_index_array(t)
-
-          x_mean = x_mean + A(j,2)
-
-     enddo
-
-     x_mean = koef_mean * x_mean
-
-     ! Вычисление коррелограммы
-     
-     s2 = 0d0
-     
-     do t = 0, N - 1
-
-!          j = N_index_array(t)
-          
-          diff = (A(t,2) - x_mean)
-
-          s2 = s2 + diff * diff
-
-     enddo
-     
-     open(10, file="output1")
-     do k = 0, N - 1
-
-          k_d = k
-
-          s1 = 0d0
-
-          do t = 0, N - k - 1
-
-!               j = N_index_array(t)
-
-               s1 = s1 + (A(t,2) - x_mean) * (A(t+k,2) - x_mean)
-
-          enddo
-
-          r(k) = s1 / s2
-
-          write(10,'(e16.7, 1x, e16.7)') k_d, r(k)
-
-     enddo
-     close(10)
+     ! [Вычисление коррелограммы прямым способом]
+     call F2_correlogram_direct(A, x_mean, N)
 
      ! Определение pi
      pi = 4d0 * datan(1d0)
 
-     ! Вычисление периодограммы вне зависимости от коэффициентов автокорреляции
+     ! Вычисление шага дисретизации
 
      p_num = 58600
      p_num_d = p_num
@@ -194,122 +128,22 @@ implicit none
           rightbound = p_num
 
      endif
+     
+     leftbound_d = leftbound
 
      ! Массив значений периодограммы
      allocate(I_p(leftbound:rightbound), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива I_p'
+
+     ! [Вычисление периодограммы]
      
-     allocate(nu(leftbound:rightbound), stat = ier)
-     if (ier .ne. 0) stop 'Не удалось выделить память для массива I_p'
+     t_koef = 10
+     call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_index_array, N, N_d, N_wif, x_mean, pi, I_p)
 
-     open(11, file="output2")
-     do p = leftbound, rightbound, 1
-
-          p_d = p
-          p_cur = leftbound - 1d0 + p_d * p_step
-          
-          s1 = 0d0
-          s2 = 0d0
-
-          do t = 0, N_wif - 1
-
-               j = N_index_array(t)
-
-               j_d = j
-
-               koef = 2d0 * pi * p_cur * j_d / N_wif
-!               koef = 2d0 * pi * p_cur * j_d / N_d
-
-               cos_value = dcos(koef)
-               sin_value = dsin(koef)
-
-               ! Проверка на ошибку округления sin_value и cos_value
-               if (abs(cos_value) .le. 1e-3) cos_value = 0d0
-               if (abs(sin_value) .le. 1e-3) sin_value = 0d0
-
-               diff = (A(j,2) - x_mean)
-
-               s1 = s1 + diff * cos_value
-               s2 = s2 + diff * sin_value
-
-          enddo
-
-          I_p(p) = (s1 * s1 + s2 * s2) / ( N_wif * pi)
-          nu(p) = p_cur / N_d
-          
-          if (abs(I_p(p)) .le. 1e-15) I_p(p) = 0d0
-
-!          I_p(p) = (s1 * s1 + s2 * s2)/(N_d * pi)
-
-          write(11,'(e16.7, 1x, e16.7, 1x, e16.7)') N_d / p_cur, nu(p), I_p(p)
-
-     enddo
-     close(11)
-
-     ! [Вычисление корреляционной функции через периодограмму]
+     ! [Вычисление коррелограммы через обратное преобразование Фурье к периодограмме]
      
-     cut_p_num = 293
-     cut_p_num_d = cut_p_num
-     leftbound_d = leftbound
-     rightbound_d = rightbound
+     call F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_num, p_step, t_koef, N, N_d, pi)
      
-     cut_N = cut_p_num_d - leftbound_d + 1d0
-     
-     s2 = 0d0
-     
-     do p = leftbound, rightbound - 1, 1
-
-!               p_d = p
-                
-!               p_cur = leftbound_d - 1d0 + p_d * p_step
-
-!               ! Проверка на ошибку округления sin_value и cos_value
-!               if (abs(cos_value) .le. 1e-3) cos_value = 0d0
-               
-               s2 = s2 + I_p(p)
-
-     enddo
-     
-     allocate(C(0:p_num - 10), stat = ier)
-     if (ier .ne. 0) stop 'Не удалось выделить память для массива I_p'
-     
-     open(12, file = 'output3')
-     do t = 0, p_num - 10, 1
-     
-          t_d = t
-          t_cur = 0d0 + t_d * p_step
-!          t_cur = t
-          
-          s1 = 0d0
-          
-          do p = leftbound, rightbound - 1, 1
-
-               p_d = p
-                
-               p_cur = leftbound_d - 1d0 + p_d * p_step
-          
-               koef = 2d0 * pi * p_cur * t_cur / N_d
-
-               cos_value = dcos(koef)
-
-               ! Проверка на ошибку округления sin_value и cos_value
-               if (abs(cos_value) .le. 1e-3) cos_value = 0d0
-               
-               s1 = s1 + I_p(p) * cos_value
-
-          enddo
-          
-!          C(t) = s1 * N_d / (rightbound_d - leftbound_d + 1d0) / c_0
-!          C(t) = C(t) * N_d / (N_d - t_cur + 1d0) / c_0
-          C(t) = s1 * N_d / (N_d - t_cur) / s2
-
-          if (abs(C(t)) .le. 1e-15) C(t) = 0d0
-
-          write(12,'(e16.7, 1x, e16.7)') t_cur, C(t)
-     
-     enddo     
-     close(12)
-
-     deallocate(A, r, I_p, N_if_array, N_index_array, nu, C)
+     deallocate(A, I_p, N_if_array, N_index_array)
 
 end
