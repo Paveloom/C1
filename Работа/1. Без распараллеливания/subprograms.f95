@@ -45,6 +45,8 @@ implicit none
      
      real(8) r(0:N-1) ! Вектор значений коррелограммы
      
+     ! Вычисление коэффициента автокорреляции c(0)
+     
      s2 = 0d0
      
      do t = 0, N - 1
@@ -54,6 +56,9 @@ implicit none
           s2 = s2 + diff * diff
 
      enddo
+     
+     ! Вычисление коэффициентов автокорреляции c(k)
+     ! и деление их на значение коэффициента c(0)
      
      open(10, file="output1")
      do k = 0, N - 1
@@ -90,14 +95,13 @@ implicit none
      integer(4), intent(in) :: N_index_array(0:N_wif-1) ! Массив индексов с учётом исключений
      
      real(8), intent(in)    :: A(0:N-1,2)  ! Матрица исходных данных
-     real(8), intent(in)    :: p_step      ! Шаг дискретизации частот
+     real(8), intent(in)    :: p_step      ! Шаг дискретизации множителей p (для частот)
      real(8), intent(in)    :: x_mean      ! Среднее значение выборки с учётом исключений
      real(8), intent(in)    :: pi          ! Число pi
      real(8), intent(in)    :: N_d         ! Овеществление N
      real(8), intent(in)    :: leftbound_d ! Овеществление leftbound
      
-     ! Овеществления
-     real(8) p_d, j_d
+     real(8) p_d, j_d ! Овеществления
      
      integer(4) p, t, j ! Вспомогательные переменные
      
@@ -119,6 +123,10 @@ implicit none
 
           do t = 0, N_wif - 1
 
+               ! Применение массива исключений:
+               ! суммирование происходит только 
+               ! по невырожденным элементам
+               
                j = N_index_array(t)
 
                j_d = j
@@ -138,6 +146,11 @@ implicit none
                s2 = s2 + diff * sin_value
 
           enddo
+          
+          ! Вычисление периодограммы по формуле 7.17 из
+          ! Chatfield - The Analysis of Time Series, стр. 111
+          ! с предварительным центрированием ряда (то есть с
+          ! вычитанием среднего из выборки)
 
           I_p(p) = (s1 * s1 + s2 * s2) / ( N_wif * pi )
           
@@ -157,16 +170,15 @@ implicit none
      
      integer(4), intent(in) :: p_num                     ! Общее число множителей p
      integer(4), intent(in) :: N                         ! Размер выборки
-     integer(4), intent(in) :: t_koef                    ! Множитель дискретизации периодов
+     integer(4), intent(in) :: t_koef                    ! Множитель дискретизации множителей t (для периодов)
      integer(4), intent(in) :: leftbound, rightbound     ! Границы рабочего диапазона частот
      real(8), intent(in)    :: I_p(leftbound:rightbound) ! Массив значений периодограммы
-     real(8), intent(in)    :: p_step                    ! Шаг дискретизации частот
+     real(8), intent(in)    :: p_step                    ! Шаг дискретизации множителей p (для частот)
      real(8), intent(in)    :: N_d                       ! Овеществление N
      real(8), intent(in)    :: leftbound_d               ! Овеществление leftbound
      real(8), intent(in)    :: pi                        ! Число pi
      
-     ! Овеществления
-     real(8) p_d, t_d
+     real(8) p_d, t_d ! Овеществления
      
      integer(4) p, t   ! Вспомогательные переменные
      real(8) s1, s2    ! Временные держатели сумм для элементов выражений
@@ -177,6 +189,8 @@ implicit none
      
      real(8) C(0:t_koef*(p_num - 10)) ! Вектор значений коррелограммы
      
+     ! Вычисление коэффициента автокорреляции c(0)
+     
      s2 = 0d0
      
      do p = leftbound, rightbound - 1, 1
@@ -184,6 +198,9 @@ implicit none
                s2 = s2 + I_p(p)
 
      enddo
+     
+     ! Вычисление коэффициентов автокорреляции c(k)
+     ! и деление их на значение коэффициента c(0)
      
      open(12, file = 'output3')
      do t = 0, t_koef * (N - 1), 1
@@ -210,6 +227,11 @@ implicit none
                s1 = s1 + I_p(p) * cos_value
 
           enddo
+          
+          ! Вычисление коррелограммы через обратное преобразование Фурье
+          ! к периодограмме по формуле для коэффициентов автокорреляции
+          ! 73 (вычисляя величину c(k)/c(0)) из Витязева - 
+          ! Спектрально-корреляционный анализ равномерных рядов, стр. 25
           
           C(t) = s1 * N_d / (N_d - t_cur) / s2
 
