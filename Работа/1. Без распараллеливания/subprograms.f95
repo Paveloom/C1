@@ -2,6 +2,74 @@ module subprograms
 implicit none
 
      contains
+     
+     ! [Формирование массива N_index_array и считывание исходных данных]
+     subroutine F0_get_index_array(N_index_array, N_wif, N, N_if_array, A)
+     implicit none
+     
+     integer(4), intent(in) :: N_wif ! Размер выборки с исключениями (N - N_if)
+     integer(4), intent(in) :: N     ! Размер выборки
+
+     integer(4), intent(out) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений
+     
+     ! Вспомогательные переменные
+     integer(4) i, k              
+     
+     ! Опциональные переменные
+     integer(4), optional, intent(inout) :: N_if_array(N_wif)   ! Заполнение массива индексов-исключений
+     real(8), optional, intent(in)       :: A(0:N-1,2) ! Матрица исходных данных
+     
+     if (present(N_if_array)) then
+     
+          ! Заполнение массива индексов-исключений
+          N_if_array = (/ 2, (i, i = 4,8), 10, 54, 133, (i, i = 1541,1546), (i, i = 2141, 2149),&
+          & 2425, 2426, (i, i = 2772, 2777), (i, i = 2807, 2809), (i, i = 2863, 2867), 2896, 2897,&
+          & 3004, (i, i = 3117, 3123), (i, i = 3537, 3545), (i, i = 3551, 3556), (i, i = 3586, 3594),&
+          & (i, i = 3602, 3607), (i, i = 3795, 3801), (i, i = 3810, 3953), (i, i = 3961, 4026),&
+          & 5284, 5287, 5613, 5669 /)
+     
+          k = 1 ! Сдвиг при обнаружении элемента из N_if_array,
+                ! уменьшаем таким образом массив индексов 1:N до размера N - N_if
+
+          ! Заполнение массива N_index_array
+
+          do i = 0, N - 1
+
+               if (i .ne. N_if_array(k) - 1) then
+
+                    N_index_array(i - k + 1) = i
+
+               else
+
+                    k = k + 1; cycle
+
+               endif
+
+          enddo
+     
+     else
+     
+          k = 1 ! Сдвиг при обнаружении нулевого элемента из столбца A(:,2),
+                ! уменьшаем таким образом массив индексов 1:N до размера N - N_if
+     
+          do i = 0, N - 1
+
+               if (A(i,2) .ne. 0d0) then
+
+                    N_index_array(i - k + 1) = i
+
+               else
+
+                    k = k + 1; cycle
+
+               endif
+
+          enddo
+     
+     endif
+     
+     end subroutine
+     
 
      ! [Вычисление среднего значения выборки]
      subroutine F1_mean(A, x_mean, N_index_array, N_wif, N, N_d, use_if)

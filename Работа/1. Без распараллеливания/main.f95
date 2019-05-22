@@ -30,7 +30,7 @@ implicit none
      integer(4) t_koef ! Множитель дискретизации периодов
 
      ! Вспомогательные переменные
-     integer(4) k, i, ier
+     integer(4) i, ier
      
      ! Овеществления
      real(8) N_d, p_num_d, leftbound_d
@@ -40,102 +40,109 @@ implicit none
      integer(4) rightbound ! Праввая граница рабочего диапазона частот
      
      ! Ответы на вопросы
-     integer(4) full_range ! Использовать полный или указанный рабочие диапазоны?
-     integer(4) use_if     ! Использовать массив исключений?
-     integer(4) bias_fix   ! Приводить коэффициенты корреляции к несмещённой оценке?
+     integer(4) full_range           ! Использовать полный или указанный рабочие диапазоны?
+     integer(4) use_if               ! Использовать массив исключений?
+     integer(4) bias_fix             ! Приводить коэффициенты корреляции к несмещённой оценке?
+     integer(4) index_array_manually ! Заполнять массив исключений вручную?
 
      open(9, file = 'settings')
      
      ! Считывание размера выборки
-     read(9,'()'); read(9,*) N
+     read(9,'(/)'); read(9,*) N
      
      ! Использовать массив исключений?
-     read(9,'(//)'); read(9,*) use_if
+     read(9,'(///)'); read(9,*) use_if
+     
+     ! Заполнять массив исключений вручную (указание в процедуре F0 в коде модуля
+     ! программы) или искать значения индексов исключений программно (может замедлить программу)?
+     read(9,'(/////)'); read(9,*) index_array_manually
      
      ! Считывание числа исключений
-     read(9,'(/)'); read(9,*) N_if
+     read(9,'(//)'); read(9,*) N_if
      
      ! Использовать указанный диапазон частот для вычисления периодограммы
      ! или считать по полному диапазону?
-     read(9,'(///)'); read(9,*) full_range
+     read(9,'(////)'); read(9,*) full_range
      
      ! Приводить коэффициенты корреляции к несмещённой оценке?
-     read(9,'(//)'); read(9,*) bias_fix
+     read(9,'(///)'); read(9,*) bias_fix
      
      ! Считывание множителя дискретизации множителей p (для частот)
-     read(9,'(/)'); read(9,*) p_koef
+     read(9,'(//)'); read(9,*) p_koef
      
      ! Считывание множителя дискретизации множителей t (для периодов)
-     read(9,'(/)'); read(9,*) t_koef
+     read(9,'(//)'); read(9,*) t_koef
      
      ! Считывание границ рабочего диапазона частот
-     read(9,'(///)'); read(9,*) leftbound
-                      read(9,*) rightbound
+     read(9,'(//)'); read(9,*) leftbound
+                     read(9,*) rightbound
      
      close(9)
 
      ! Овеществление N
      N_d = N
      
-     ! Настройки рабочего диапазона частот в разделе периодограмма
+     ! Исходные данные
+     allocate(A(0:N-1,2), stat = ier)
+     if (ier .ne. 0) stop 'Не удалось выделить память для массива A'
+     
+     ! Считывание исходных данных
 
+     do i = 0, N - 1
+
+          read(*,*) A(i,1), A(i,2)
+
+     enddo
+     
      ! Вычисление размера выборки с исключениями
-     N_wif = N - N_if
+     
+     if (use_if .ne. 0) N_if = 0
+     
+     if (index_array_manually .eq. 0) then
+          
+          N_wif = N - N_if
 
-     if (use_if .eq. 0) then
+     else
+     
+          N_wif = 0
+     
+          do i = 0, N - 1
 
-     ! Массив индексов-исключений
-     allocate(N_if_array(N_if), stat = ier)
-     if (ier .ne. 0) stop 'Не удалось выделить память для массива N_if_array'
+               if (A(i,2) .ne. 0d0) then
+
+                    N_wif = N_wif + 1; cycle
+
+               endif
+
+          enddo
+          
+     endif
 
      ! Массив индексов с учётом исключений
      allocate(N_index_array(0:N_wif-1), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива N_index_array'
-
-     ! Заполнение массива индексов-исключений
-     N_if_array = (/ 2, (i, i = 4,8), 10, 54, 133, (i, i = 1541,1546), (i, i = 2141, 2149),&
-     & 2425, 2426, (i, i = 2772, 2777), (i, i = 2807, 2809), (i, i = 2863, 2867), 2896, 2897,&
-     & 3004, (i, i = 3117, 3123), (i, i = 3537, 3545), (i, i = 3551, 3556), (i, i = 3586, 3594),&
-     & (i, i = 3602, 3607), (i, i = 3795, 3801), (i, i = 3810, 3953), (i, i = 3961, 4026),&
-     & 5284, 5287, 5613, 5669 /)
-
-     k = 1 ! Сдвиг при обнаружении элемента из N_if_array,
-           ! уменьшаем таким образом массив индексов 1:N до размера N - N_if
-
-     ! Заполнение массива N_index_array
-
-     do i = 0, N - 1
-
-          if (i .ne. N_if_array(k) - 1) then
-
-               N_index_array(i - k + 1) = i
-
-               else
-
-               k = k + 1; cycle
-
+     
+     ! [Заполнение массива индексов-исключений]
+     
+     if (use_if .eq. 0) then
+          
+          if (index_array_manually .eq. 0) then
+          
+               allocate(N_if_array(N_if), stat = ier)
+               if (ier .ne. 0) stop 'Не удалось выделить память для массива N_if_array'
+          
+               call F0_get_index_array(N_index_array, N_wif, N, N_if_array)
+               
+               deallocate(N_if_array)
+          
+          else
+          
+               call F0_get_index_array(N_index_array, N_wif, N, A=A)
+          
           endif
-
-     enddo
-     
-     deallocate(N_if_array)
-     
+          
      endif
-     
-     ! Выделение памяти под рабочие массивы
 
-     ! Исходные данные
-     allocate(A(0:N-1,2), stat = ier)
-     if (ier .ne. 0) stop 'Не удалось выделить память для массива A'
-
-     ! Считывание исходных данных
-
-        do i = 0, N - 1
-
-                read(*,*) A(i,1), A(i,2)
-
-        enddo
-        
      ! [Вычисление среднего значения выборки]
      call F1_mean(A, x_mean, N_index_array, N_wif, N, N_d, use_if)
 
