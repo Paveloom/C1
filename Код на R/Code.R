@@ -3,6 +3,7 @@ library("xlsx")
 
 A <- read.table("D:/Paveloom/Курсовая/output1")
 B <- read.table("D:/Paveloom/Курсовая/output2")
+C <- read.table("D:/Paveloom/Курсовая/output3")
 
 # options(digits=16)
 
@@ -22,7 +23,7 @@ dev.off()
 # Два месяц
 
 acf(D[,2], lag.max = 62, xlab = "Time Lag, Days, k", ylab = "Autocorrelation Coefficient, r(k)", main = "Correlogram of Total Solar Irradiance (TSI) at 1-AU, 62 days")
-lines(x, A[,2])
+lines(A[,1], A[,2])
 
 # Один месяца
 
@@ -279,4 +280,132 @@ plot(B[,1]/100,B[,2], type = 'l', xlim = c(0,58.6), ylim = c(0,3e+6))
 dev.off()
 
 # Тест 5
+
 var(D[,2])
+
+# Тест 6 (Проверка восстановления при вырезании частот)
+
+library(tseries)
+acf(D[,2], lag.max = 100)
+lines(x,A[,2])
+
+plot(x, A[,2], xlim = c(0,10), type='l')
+lines(C[,1], C[,2], xlim = c(0,10))
+
+A <- read.table("D:/Paveloom/Курсовая/output1")
+C <- read.table("D:/Paveloom/Курсовая/output3")
+
+plot(C[,1], C[,2], xlim = c(0,5860), ylim = c(1,-1), type='l')
+lines(A[,1], A[,2], xlim = c(0,5860), col = 'blue')
+
+acf(D[,2], lag.max = 5860, ylim = c(-1,1), xlab = "Time Lag, Days, k", ylab = "Autocorrelation Coefficient, r(k)", main = "Correlogram of Total Solar Irradiance (TSI) at 1-AU, 31 days")
+lines(A[,1], A[,2])
+lines(C[,1], C[,2], col = 'red')
+
+par(mfrow=c(2,1))
+plot(A[,1], A[,2], type = 'l', xlim = c(0,62), ylim = c(-0.5,1), xlab = "Time Lag, Days, k", ylab = "Autocorrelation Coefficient, r(k)", main = "Correlogram of Total Solar Irradiance (TSI) at 1-AU, 62 days")
+lines(C[,1], C[,2], col = 'red')
+plot(A[,1], A[,2], type = 'l', ylim = c(-0.5,1), xlab = "Time Lag, Days, k", ylab = "Autocorrelation Coefficient, r(k)", main = "Correlogram of Total Solar Irradiance (TSI) at 1-AU, 5860 days")
+lines(C[,1], C[,2], col = 'red')
+dev.off()
+
+# Тест 7 (Проверка влияния выпущенных значений)
+
+input1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/input1")
+input2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/input2")
+input3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/input3")
+
+fnn1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/1nn1")
+fnn2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/1nn2")
+fnn3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/1nn3")
+
+fny1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/1ny1")
+fny2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/1ny2")
+fny3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/1ny3")
+
+snn1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2nn1")
+snn2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2nn2")
+snn3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2nn3")
+
+sny1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2ny1")
+sny2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2ny2")
+sny3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2ny3")
+
+syn1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2yn1")
+syn2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2yn2")
+syn3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2yn3")
+
+syy1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2yy1")
+syy2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2yy2")
+syy3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/2yy3")
+
+tnn1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3nn1")
+tnn2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3nn2")
+tnn3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3nn3")
+
+tny1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3ny1")
+tny2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3ny2")
+tny3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3ny3")
+
+tyn1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3yn1")
+tyn2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3yn2")
+tyn3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3yn3")
+
+tyy1 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3yy1")
+tyy2 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3yy2")
+tyy3 <- read.table("D:/Paveloom/Курсовая/Данные для теста на влияние выпущенных данных/3yy3")
+
+
+par(mfrow=c(1,3))
+par(mfrow=c(1,5))
+dev.off()
+
+# [Входящие данные]
+
+plot(input1[,1], input1[,2], type = 'l', xlab = ' ', ylab = ' ')
+plot(input2[,1], input2[,2], type = 'l', ylim = c(999,1001), xlab = ' ', ylab = ' ')
+plot(input3[,1], input3[,2], type = 'l', ylim = c(999,1001), xlab = ' ', ylab = ' ')
+
+# [Без выпущенных значений]
+
+plot(fnn1[,1], fnn1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(fnn3[,1], fnn3[,2], type = 'l', col = 'red')
+
+plot(fny1[,1], fny1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(fny3[,1], fny3[,2], type = 'l', col = 'red')
+
+# [5 выпущенных значений]
+
+plot(snn1[,1], snn1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(snn3[,1], snn3[,2], type = 'l', col = 'red')
+
+plot(sny1[,1], sny1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(sny3[,1], sny3[,2], type = 'l', col = 'red')
+
+plot(syn1[,1], syn1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(syn3[,1], syn3[,2], type = 'l', col = 'red')
+
+plot(syy1[,1], syy1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(syy3[,1], syy3[,2], type = 'l', col = 'red')
+
+# [25 выпущенных значений]
+
+plot(tnn1[,1], tnn1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(tnn3[,1], tnn3[,2], type = 'l', col = 'red')
+
+plot(tny1[,1], tny1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(tny3[,1], tny3[,2], type = 'l', col = 'red')
+
+plot(tyn1[,1], tyn1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(tyn3[,1], tyn3[,2], type = 'l', col = 'red')
+
+plot(tyy1[,1], tyy1[,2], ylim = c(-1,1), xlim = c(0,101), type = 'l', xlab = ' ', ylab = ' ')
+lines(tyy3[,1], tyy3[,2], type = 'l', col = 'red')
+
+dev.off()
+
+# [Периодограммы]
+
+plot(foutput2[,1], foutput2[,2], ylim = c(0,1), type='l')
+plot(soutput2[,1], soutput2[,2], ylim = c(0,1), type='l')
+plot(toutput2[,1], toutput2[,2], ylim = c(0,1), type='l')
