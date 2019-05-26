@@ -179,7 +179,7 @@ implicit none
      if (use_if .eq. 0) deallocate(N_index_array)
 
      ! [Вычисление коррелограммы через обратное преобразование Фурье к периодограмме]
-     call F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_num, p_step, t_koef, N, N_d, pi, &
+     call F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, pi, &
      &bias_fix)
      deallocate(I_p)
 

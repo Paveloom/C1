@@ -101,12 +101,7 @@ implicit none
      
      else
      
-          do t = 0, N - 1
-
-               x_mean = x_mean + A(t,2)
-
-          enddo
-          
+          x_mean = sum(A(:,2))
           x_mean = x_mean / N_d
      
      endif
@@ -245,7 +240,6 @@ implicit none
                     j = N_index_array(t)
 
                     j_d = j
-
                     koef = 2d0 * pi * p_cur * j_d / N_wif
 
                     cos_value = dcos(koef)
@@ -294,7 +288,6 @@ implicit none
                     ! по невырожденным элементам
                
                     j_d = t
-
                     koef = 2d0 * pi * p_cur * j_d / N_d
 
                     cos_value = dcos(koef)
@@ -331,11 +324,10 @@ implicit none
      
      
      ! [Вычисление коррелограммы через обратное преобразование Фурье к периодограмме]
-     subroutine F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_num, p_step, t_koef, N, N_d, &
+     subroutine F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, &
      &pi, bias_fix)
      implicit none
      
-     integer(4), intent(in) :: p_num                     ! Общее число множителей p
      integer(4), intent(in) :: N                         ! Размер выборки
      integer(4), intent(in) :: t_koef                    ! Множитель дискретизации множителей t (для периодов)
      integer(4), intent(in) :: leftbound, rightbound     ! Границы рабочего диапазона частот
@@ -355,17 +347,12 @@ implicit none
      real(8) koef      ! Аргумент тригонометрических функций
      real(8) cos_value ! Значение косинуса от аргумента koef
      
-     real(8) C(0:t_koef*(p_num - 10)) ! Вектор значений коррелограммы
+     real(8) C(0:t_koef*(N - 1)) ! Вектор значений коррелограммы
      
      ! Вычисление коэффициента автокорреляции c(0)
      
      s2 = 0d0
-     
-     do p = leftbound, rightbound - 1, 1
-               
-               s2 = s2 + I_p(p)
-
-     enddo
+     s2 = sum(I_p)
      
      ! Вычисление коэффициентов автокорреляции c(k)
      ! и деление их на значение коэффициента c(0)
@@ -380,10 +367,9 @@ implicit none
           
                s1 = 0d0
           
-               do p = leftbound, rightbound - 1, 1
+               do p = leftbound, rightbound, 1
 
                     p_d = p
-                
                     p_cur = leftbound_d - 1d0 + p_d * p_step
           
                     koef = 2d0 * pi * p_cur * t_cur / N_d
@@ -418,14 +404,12 @@ implicit none
           
                t_d = t
                t_cur = 0d0 + t_d / t_koef
-!               t_cur = t
                
                s1 = 0d0
                
-               do p = leftbound, rightbound - 1, 1
+               do p = leftbound, rightbound, 1
      
                     p_d = p
-                     
                     p_cur = leftbound_d - 1d0 + p_d * p_step
                
                     koef = 2d0 * pi * p_cur * t_cur / N_d
