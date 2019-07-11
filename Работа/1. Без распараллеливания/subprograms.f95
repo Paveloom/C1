@@ -141,9 +141,11 @@ implicit none
      ! Вычисление коэффициентов автокорреляции c(k)
      ! и деление их на значение коэффициента c(0)
      
-     if (bias_fix .eq. 0) then
+     open(10, file="direct_correlogram.dat")
+     write(10, '(a, /, a, 5x, a, /, a)') '#', '# Time Lag, Days, k', 'Autocorrelation Coefficient, r(k)', '#'
      
-          open(10, file="output1")
+     if (bias_fix .eq. 0) then ! Приводить коэффициенты корреляции к несмещённой оценке?
+     
           do k = 0, N - 1
 
                k_d = k
@@ -158,14 +160,13 @@ implicit none
 
                r(k) = s1 * N_d / (N_d - k_d) / s2
 
-               write(10,'(e16.7, 1x, e16.7)') k_d, r(k)
+               write(10, '(f11.1, 17x, e23.15)') k_d, r(k)
 
           enddo
           close(10)
      
      else
      
-          open(10, file="output1")
           do k = 0, N - 1
 
                k_d = k
@@ -180,7 +181,7 @@ implicit none
 
                r(k) = s1 / s2
 
-               write(10,'(e16.7, 1x, e16.7)') k_d, r(k)
+               write(10, '(f11.1, 17x, e23.15)') k_d, r(k)
 
           enddo
           close(10)
@@ -220,9 +221,11 @@ implicit none
      real(8) cos_value ! Значение косинуса от аргумента koef
      real(8) sin_value ! Значение синуса от аргумента koef
      
-     if (use_if .eq. 0) then
+     open(11, file="periodogram.dat")
+     write(11, '(a, /, a, 6x, a, 6x, a, /, a)') '#', '#    Period, Days, T', 'Frequency, 1/Days, v', 'Periodogram, I(v)', '#'
      
-          open(11, file="output2")
+     if (use_if .eq. 0) then ! Использовать массив исключений?
+     
           do p = leftbound, rightbound, 1
 
                p_d = p
@@ -261,18 +264,17 @@ implicit none
                ! с предварительным центрированием ряда (то есть с
                ! вычитанием среднего из выборки)
 
-               I_p(p) = (s1 * s1 + s2 * s2) / ( N_wif * pi )
+               I_p(p) = (s1 * s1 + s2 * s2) / (N_wif * pi)
           
                if (abs(I_p(p)) .le. 1e-15) I_p(p) = 0d0
 
-               write(11,'(e16.7, 1x, e16.7, 1x, e16.7)') N_d / p_cur, p_cur / N_d, I_p(p)
+               write(11, '(e23.15, 1x, e23.15, 1x, e23.15)') N_d / p_cur, p_cur / N_d, I_p(p)
 
           enddo
           close(11)
      
      else
      
-          open(11, file="output2")
           do p = leftbound, rightbound, 1
 
                p_d = p
@@ -309,11 +311,11 @@ implicit none
                ! с предварительным центрированием ряда (то есть с
                ! вычитанием среднего из выборки)
 
-               I_p(p) = (s1 * s1 + s2 * s2) / ( N_d * pi )
+               I_p(p) = (s1 * s1 + s2 * s2) / (N_d * pi)
           
                if (abs(I_p(p)) .le. 1e-15) I_p(p) = 0d0
 
-               write(11,'(e16.7, 1x, e16.7, 1x, e16.7)') N_d / p_cur, p_cur / N_d, I_p(p)
+               write(11, '(e23.15, 1x, e23.15, 1x, e23.15)') N_d / p_cur, p_cur / N_d, I_p(p)
 
           enddo
           close(11)
@@ -323,7 +325,7 @@ implicit none
      end subroutine
      
      
-     ! [Вычисление коррелограммы через обратное преобразование Фурье к периодограмме]
+     ! [Вычисление коррелограммы через применение обратного преобразования Фурье к периодограмме]
      subroutine F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, &
      &pi, bias_fix)
      implicit none
@@ -357,9 +359,11 @@ implicit none
      ! Вычисление коэффициентов автокорреляции c(k)
      ! и деление их на значение коэффициента c(0)
      
-     if (bias_fix .eq. 0) then
+     open(12, file = 'reverse_correlogram.dat')
+     write(12, '(a, /, a, 5x, a, /, a)') '#', '# Time Lag, Days, k', 'Autocorrelation Coefficient, r(k)', '#'
      
-          open(12, file = 'output3')
+     if (bias_fix .eq. 0) then ! Приводить коэффициенты корреляции к несмещённой оценке?
+     
           do t = 0, t_koef * (N - 1), 1
      
                t_d = t
@@ -392,14 +396,14 @@ implicit none
 
                if (abs(C(t)) .le. 1e-15) C(t) = 0d0
 
-               write(12,'(e16.7, 1x, e16.7)') t_cur, C(t)
+               write(12, '(f11.1, 17x, e23.15)') t_cur, C(t)
      
           enddo     
           close(12)
      
      else
           
-          open(12, file = 'output3')
+          open(12, file = 'reverse_correlogram.dat')
           do t = 0, t_koef * (N - 1), 1
           
                t_d = t
@@ -432,7 +436,7 @@ implicit none
 
                if (abs(C(t)) .le. 1e-15) C(t) = 0d0
 
-               write(12,'(e16.7, 1x, e16.7)') t_cur, C(t)
+               write(12, '(f11.1, 17x, e23.15)') t_cur, C(t)
      
           enddo     
           close(12)

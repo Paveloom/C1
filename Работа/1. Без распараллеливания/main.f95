@@ -124,9 +124,9 @@ implicit none
      
      ! [Заполнение массива индексов-исключений]
      
-     if (use_if .eq. 0) then
+     if (use_if .eq. 0) then ! Использовать массив исключений?
           
-          if (index_array_manually .eq. 0) then
+          if (index_array_manually .eq. 0) then ! Заполнять массив исключений вручную
           
                allocate(N_if_array(N_if), stat = ier)
                if (ier .ne. 0) stop 'Не удалось выделить память для массива N_if_array'
@@ -178,7 +178,7 @@ implicit none
      deallocate(A)
      if (use_if .eq. 0) deallocate(N_index_array)
 
-     ! [Вычисление коррелограммы через обратное преобразование Фурье к периодограмме]
+     ! [Вычисление коррелограммы через применение обратного преобразования Фурье к периодограмме]
      call F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, pi, &
      &bias_fix)
      deallocate(I_p)

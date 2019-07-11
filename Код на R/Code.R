@@ -1,9 +1,9 @@
 
 library("xlsx")
 
-A <- read.table("D:/Paveloom/Курсовая/output1")
-B <- read.table("D:/Paveloom/Курсовая/output2")
-C <- read.table("D:/Paveloom/Курсовая/output3")
+A <- read.table("D:/Paveloom/Курсовая/direct_correlogram.dat")
+B <- read.table("D:/Paveloom/Курсовая/periodogram.dat")
+C <- read.table("D:/Paveloom/Курсовая/reverse_correlogram.dat")
 
 # options(digits=16)
 
@@ -292,8 +292,8 @@ lines(x,A[,2])
 plot(x, A[,2], xlim = c(0,10), type='l')
 lines(C[,1], C[,2], xlim = c(0,10))
 
-A <- read.table("D:/Paveloom/Курсовая/output1")
-C <- read.table("D:/Paveloom/Курсовая/output3")
+A <- read.table("D:/Paveloom/Курсовая/direct_correlogram.dat")
+C <- read.table("D:/Paveloom/Курсовая/reverse_correlogram.dat")
 
 plot(C[,1], C[,2], xlim = c(0,5860), ylim = c(1,-1), type='l')
 lines(A[,1], A[,2], xlim = c(0,5860), col = 'blue')
