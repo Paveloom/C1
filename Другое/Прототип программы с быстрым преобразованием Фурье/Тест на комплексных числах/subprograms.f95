@@ -50,23 +50,17 @@ implicit none
      
      complex(8), intent(inout), dimension(0:) :: C ! Входной / выходной массив данных
      
-     ! Массивы данных по нечётным и чётным индексам
-     complex(8), allocatable, dimension(:) :: odd, even
+     complex(8), allocatable, dimension(:) :: odd, even ! Массивы данных по нечётным и чётным индексам
      
+     complex(8) wn     ! Комплексное число cos(koef) + i * sin(koef)
+     complex(8) w      ! Держатель значений корня из единицы
+     real(8) arg       ! Аргумент тригонометрических функций
+     real(8) pi        ! Число pi
      integer(4) N      ! Размер входного массива
      integer(4) N_half ! Половина от N
      
-     real(8) arg       ! Аргумент тригонометрических функций
-     real(8) cos_value ! Значение косинуса от аргумента koef
-     real(8) sin_value ! Значение синуса от аргумента koef
-     
-     complex(8) w  ! Держатель значений корня из единицы
-     complex(8) wn ! Комплексное число cos(koef) + i * sin(koef)
-     
      integer(4) ier, i ! Вспомогательные переменные
-     real(8) N_d       ! Овеществление N
-     
-     real(8) pi ! Число pi
+     real(8) N_d  ! Овеществления i и N
      
      ! Определение pi
      pi = 4d0 * datan(1d0)
@@ -92,13 +86,6 @@ implicit none
      N_d = N
      
      arg = 2d0 * pi / N_d
-     
-     cos_value = dcos(arg)
-     sin_value = dsin(arg)
-     
-     ! Проверка на ошибку округления cos_value и sin_value
-     if (abs(cos_value) .le. 1e-3) cos_value = 0d0
-     if (abs(sin_value) .le. 1e-3) sin_value = 0d0
      
      w  = complex(1d0, 0d0)
      wn = complex(cos(arg), sin(arg))

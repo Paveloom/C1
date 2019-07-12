@@ -409,3 +409,52 @@ dev.off()
 plot(foutput2[,1], foutput2[,2], ylim = c(0,1), type='l')
 plot(soutput2[,1], soutput2[,2], ylim = c(0,1), type='l')
 plot(toutput2[,1], toutput2[,2], ylim = c(0,1), type='l')
+
+# Тест 8 (Проверка FFT)
+
+P <- read.table("D:/Paveloom/Курсовая/test-input")
+
+myfft <- function(s){
+  N <- length(s)
+  if (N != 1){
+    odd <- s[(1:(N/2))*2-1]
+    even <- s[(1:(N/2))*2]
+    s[1:(N/2)] <- myfft(odd)
+    s[(N/2+1):N] <- myfft(even)
+    
+    s[1:(N/2)] <- t[1:(N/2)] + exp(-1i*2*pi*(0:(N/2-1))/N) * t[(N/2+1):N]
+    s[(N/2+1):N] <- t[1:(N/2)] - exp(-1i*2*pi*(0:(N/2-1))/N) * t[(N/2+1):N]
+  }
+  return(s)
+}
+
+myfft(P)
+
+fft0 <- function(z, inverse=FALSE) {
+  n <- length(z)
+  if(n == 0) return(z)
+  k <- 0:(n-1)
+  ff <- (if(inverse) 1 else -1) * 2*pi * 1i * k/n
+  vapply(1:n, function(h) sum(z * exp(ff*(h-1))), complex(1))
+}
+
+arr = c(0.491766758879902E+00, 
+        0.200198996827119E+01, 
+        0.462146715311682E+01, 
+        0.845712068162356E+01, 
+        0.135731626276645E+02, 
+        0.199235880122662E+02, 
+        0.272920244251981E+02, 
+        0.352551923966605E+02, 
+        0.431865903500987E+02, 
+        0.503093502914442E+02, 
+        0.557970110822338E+02, 
+        0.589087894699317E+02, 
+        0.591322850138488E+02, 
+        0.563014351778065E+02, 
+        0.506584818229123E+02, 
+        0.428382047325505E+02)
+
+arr
+
+fft(arr)

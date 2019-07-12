@@ -16,7 +16,7 @@ implicit none
      integer(4) i, k              
      
      ! Опциональные переменные
-     integer(4), optional, intent(inout) :: N_if_array(N_wif)   ! Заполнение массива индексов-исключений
+     integer(4), optional, intent(inout) :: N_if_array(N_wif) ! Массив индексов-исключений
      real(8), optional, intent(in)       :: A(0:N-1,2) ! Матрица исходных данных
      
      if (present(N_if_array)) then
@@ -217,9 +217,9 @@ implicit none
      real(8) s1, s2    ! Временные держатели сумм для элементов выражений
      real(8) diff      ! Разность (A(j,2) - x_mean)
      real(8) p_cur     ! Текущее значение p
-     real(8) koef      ! Аргумент тригонометрических функций
-     real(8) cos_value ! Значение косинуса от аргумента koef
-     real(8) sin_value ! Значение синуса от аргумента koef
+     real(8) arg       ! Аргумент тригонометрических функций
+     real(8) cos_value ! Значение косинуса от аргумента arg
+     real(8) sin_value ! Значение синуса от аргумента arg
      
      open(11, file="periodogram.dat")
      write(11, '(a, /, a, 6x, a, 6x, a, /, a)') '#', '#    Period, Days, T', 'Frequency, 1/Days, v', 'Periodogram, I(v)', '#'
@@ -243,10 +243,10 @@ implicit none
                     j = N_index_array(t)
 
                     j_d = j
-                    koef = 2d0 * pi * p_cur * j_d / N_wif
+                    arg = 2d0 * pi * p_cur * j_d / N_wif
 
-                    cos_value = dcos(koef)
-                    sin_value = dsin(koef)
+                    cos_value = dcos(arg)
+                    sin_value = dsin(arg)
 
                     ! Проверка на ошибку округления sin_value и cos_value
                     if (abs(cos_value) .le. 1e-3) cos_value = 0d0
@@ -290,10 +290,10 @@ implicit none
                     ! по невырожденным элементам
                
                     j_d = t
-                    koef = 2d0 * pi * p_cur * j_d / N_d
+                    arg = 2d0 * pi * p_cur * j_d / N_d
 
-                    cos_value = dcos(koef)
-                    sin_value = dsin(koef)
+                    cos_value = dcos(arg)
+                    sin_value = dsin(arg)
 
                     ! Проверка на ошибку округления sin_value и cos_value
                     if (abs(cos_value) .le. 1e-3) cos_value = 0d0
@@ -346,8 +346,8 @@ implicit none
      real(8) s1, s2    ! Временные держатели сумм для элементов выражений
      real(8) p_cur     ! Текущее значение p
      real(8) t_cur     ! Текущее значение t
-     real(8) koef      ! Аргумент тригонометрических функций
-     real(8) cos_value ! Значение косинуса от аргумента koef
+     real(8) arg       ! Аргумент тригонометрических функций
+     real(8) cos_value ! Значение косинуса от аргумента arg
      
      real(8) C(0:t_koef*(N - 1)) ! Вектор значений коррелограммы
      
@@ -376,9 +376,9 @@ implicit none
                     p_d = p
                     p_cur = leftbound_d - 1d0 + p_d * p_step
           
-                    koef = 2d0 * pi * p_cur * t_cur / N_d
+                    arg = 2d0 * pi * p_cur * t_cur / N_d
 
-                    cos_value = dcos(koef)
+                    cos_value = dcos(arg)
 
                     ! Проверка на ошибку округления sin_value и cos_value
                     if (abs(cos_value) .le. 1e-3) cos_value = 0d0
@@ -416,11 +416,11 @@ implicit none
                     p_d = p
                     p_cur = leftbound_d - 1d0 + p_d * p_step
                
-                    koef = 2d0 * pi * p_cur * t_cur / N_d
+                    arg = 2d0 * pi * p_cur * t_cur / N_d
      
-                    cos_value = dcos(koef)
+                    cos_value = dcos(arg)
 
-                    ! Проверка на ошибку округления sin_value и cos_value
+                    ! Проверка на ошибку округления cos_value
                     if (abs(cos_value) .le. 1e-3) cos_value = 0d0
                
                     s1 = s1 + I_p(p) * cos_value

@@ -154,7 +154,7 @@ implicit none
 
      ! Вычисление шага дисретизации для множителей частот
 
-     p_num = N * p_koef
+     p_num = N * p_koef     ! Общее число множителей p
      p_num_d = p_num
      p_step = N_d / p_num_d
 
