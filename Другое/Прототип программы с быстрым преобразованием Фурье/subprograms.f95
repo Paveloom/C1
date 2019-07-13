@@ -57,11 +57,11 @@ implicit none
      integer(4) N_half ! Половина от N
      
      real(8) arg       ! Аргумент тригонометрических функций
-     real(8) cos_value ! Значение косинуса от аргумента koef
-     real(8) sin_value ! Значение синуса от аргумента koef
+     real(8) cos_value ! Значение косинуса от аргумента arg
+     real(8) sin_value ! Значение синуса от аргумента arg
      
      complex(8) w  ! Держатель значений корня из единицы
-     complex(8) wn ! Комплексное число cos(koef) + i * sin(koef)
+     complex(8) wn ! Комплексное число cos(arg) + i * sin(arg)
      
      integer(4) ier, i ! Вспомогательные переменные
      real(8) N_d       ! Овеществление N
@@ -101,7 +101,7 @@ implicit none
      if (abs(sin_value) .le. 1e-3) sin_value = 0d0
      
      w  = complex(1d0, 0d0)
-     wn = complex(cos(arg), sin(arg))
+     wn = complex(cos_value, sin_value)
      
      do i = 0, N_half - 1, 1
      

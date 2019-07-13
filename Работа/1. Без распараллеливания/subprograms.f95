@@ -138,8 +138,14 @@ implicit none
 
      enddo
      
-     ! Вычисление коэффициентов автокорреляции c(k)
-     ! и деление их на значение коэффициента c(0)
+     ! Вычисление коэффициентов автокорреляции c(k) по 
+     ! формуле 4.1 из Chatfield - The Analysis of 
+     ! Time Series, стр. 49, и деление их на значение
+     ! коэффициента c(0) согласно формуле 4.4
+     
+     ! Нормировка для несмещённой оценки взята из
+     ! Витязева - Спектрально-корреляционный анализ 
+     ! равномерных рядов
      
      open(10, file="direct_correlogram.dat")
      write(10, '(a, /, a, 5x, a, /, a)') '#', '# Time Lag, Days, k', 'Autocorrelation Coefficient, r(k)', '#'
@@ -260,7 +266,7 @@ implicit none
                enddo
           
                ! Вычисление периодограммы по формуле 7.17 из
-               ! Chatfield - The Analysis of Time Series, стр. 111
+               ! Chatfield - The Analysis of Time Series, стр. 111,
                ! с предварительным центрированием ряда (то есть с
                ! вычитанием среднего из выборки)
 
@@ -307,7 +313,7 @@ implicit none
                enddo
           
                ! Вычисление периодограммы по формуле 7.17 из
-               ! Chatfield - The Analysis of Time Series, стр. 111
+               ! Chatfield - The Analysis of Time Series, стр. 111,
                ! с предварительным центрированием ряда (то есть с
                ! вычитанием среднего из выборки)
 
@@ -340,7 +346,7 @@ implicit none
      real(8), intent(in)    :: leftbound_d               ! Овеществление leftbound
      real(8), intent(in)    :: pi                        ! Число pi
      
-     real(8) p_d, t_d ! Овеществления
+     real(8) p_d, t_d, t_koef_d ! Овеществления
      
      integer(4) p, t   ! Вспомогательные переменные
      real(8) s1, s2    ! Временные держатели сумм для элементов выражений
@@ -359,6 +365,8 @@ implicit none
      ! Вычисление коэффициентов автокорреляции c(k)
      ! и деление их на значение коэффициента c(0)
      
+     t_koef_d = t_koef
+     
      open(12, file = 'reverse_correlogram.dat')
      write(12, '(a, /, a, 5x, a, /, a)') '#', '# Time Lag, Days, k', 'Autocorrelation Coefficient, r(k)', '#'
      
@@ -367,7 +375,7 @@ implicit none
           do t = 0, t_koef * (N - 1), 1
      
                t_d = t
-               t_cur = 0d0 + t_d / t_koef
+               t_cur = 0d0 + t_d / t_koef_d
           
                s1 = 0d0
           
@@ -407,7 +415,7 @@ implicit none
           do t = 0, t_koef * (N - 1), 1
           
                t_d = t
-               t_cur = 0d0 + t_d / t_koef
+               t_cur = 0d0 + t_d / t_koef_d
                
                s1 = 0d0
                
