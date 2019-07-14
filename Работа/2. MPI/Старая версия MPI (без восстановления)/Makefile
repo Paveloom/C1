@@ -1,8 +1,8 @@
 
      # Настройки компиляции программ
      
-     comp := gfortran
-     opt := -c -Wall -Wtabs -std=f2008
+     comp := mpiifort
+     opt := -c -debug -warn all
      pattern := f90
      allpattern := *.$(pattern)
      anypattern := %.$(pattern)
@@ -26,7 +26,6 @@
 	        $(comp) $(opt) $<
 
      # Блок правил-зависимостей (при необходимости)
-     main.o : subprograms.mod
 
      # Блок правил для инициализации make-файла для сборки программы
       
@@ -34,7 +33,7 @@
 	        touch input
       
      result : main input
-	         time ./$<  < input > output
+	         time mpiexec -np 4 ./$< > output
 	        
      result-r : main input
 		      rm output

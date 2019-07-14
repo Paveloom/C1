@@ -2,7 +2,7 @@
      # Настройки компиляции программ
      
      comp := gfortran
-     opt := -c -Wall -Wtabs
+     opt := -c -Wall -Wtabs -std=f2008
      pattern := f95
      allpattern := *.$(pattern)
      anypattern := %.$(pattern)
