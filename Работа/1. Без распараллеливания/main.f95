@@ -83,7 +83,7 @@ implicit none
      N_d = N
      
      ! Исходные данные
-     allocate(A(0:N-1,2), stat = ier)
+     allocate(A(0:N - 1,2), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива A'
      
      ! Считывание исходных данных
@@ -119,7 +119,7 @@ implicit none
      endif
 
      ! Массив индексов с учётом исключений
-     allocate(N_index_array(0:N_wif-1), stat = ier)
+     allocate(N_index_array(0:N_wif - 1), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива N_index_array'
      
      ! [Заполнение массива индексов-исключений]

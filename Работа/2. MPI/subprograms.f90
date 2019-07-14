@@ -1,4 +1,6 @@
 module subprograms
+use mpi
+use mpi_subprograms
 implicit none
 
      contains
@@ -72,7 +74,7 @@ implicit none
      
 
      ! [Вычисление среднего значения выборки]
-     subroutine F1_mean(A, x_mean, N_index_array, N_wif, N, N_d, use_if)
+     subroutine F1_mean(A, x_mean, N_index_array, N_wif, N, N_d, use_if, mpiSize, mpiRank)
      implicit none
      
      integer(4), intent(in) :: N_wif                    ! Размер выборки с исключениями (N - N_if)
@@ -83,25 +85,65 @@ implicit none
      real(8), intent(in)    :: N_d                      ! Овеществление N
      real(8), intent(out)   :: x_mean                   ! Среднее значение выборки с учётом исключений
      
-     integer(4) t, j ! Вспомогательные переменные
+     ! Переменные для деления первого подпространства итераций на порции
+     integer(4) t_size                    ! Общий размер пространства интераций
+     integer(4) partion_size              ! Размер порции
+     integer(4) partion_size_mod          ! Остаток от деления t_size на mpiSize
+     integer(4) t_leftbound, t_rightbound ! Границы индексов для данного ранга
+     integer(4) partion_shift             ! Величина mpiRank * partion_size
+     
+     ! Вспомогательные переменные при обмене сообщениями
+     integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i
+     
+     ! Стандартные и вспомогательные переменные MPI
+     integer(4), intent(in) :: mpiSize ! Размер коммуникатора
+     integer(4), intent(in) :: mpiRank ! Ранг процесса
+     integer(4) status ! Переменная статуса передачи
+     integer(4) ierr   ! Переменная ошибки
+     
+     real(8) partion_x_mean ! Сумма A(2,j) в порции по массиву исключений
+     
+     integer(4) t, j, i ! Вспомогательные переменные
      
      x_mean = 0d0
+     partion_x_mean = 0d0
      
      if (use_if .eq. 0) then
+     
+          ! Вычисление размеров порций и их границ [1]
+     
+          t_size = N_wif
+     
+          call partion_sizes(t_size, 0, mpiSize, mpiRank, partion_size, partion_shift, partion_size_mod, t_leftbound, t_rightbound)
 
-          do t = 0, N_wif - 1
+          ! Выполнение процесcом своей порции [1]
+
+          do t = t_leftbound, t_rightbound, 1
 
                j = N_index_array(t)
 
-               x_mean = x_mean + A(j,2)
+               partion_x_mean = partion_x_mean + A(j,2)
 
           enddo
      
+          call mpi_allreduce(partion_x_mean, x_mean, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
           x_mean = x_mean / N_wif
      
      else
      
-          x_mean = sum(A(:,2))
+          ! Вычисление размеров порций и их границ [2]
+     
+          t_size = N
+     
+          call partion_sizes(t_size, 0, mpiSize, mpiRank, partion_size, partion_shift, partion_size_mod, t_leftbound, t_rightbound)
+     
+          do t = t_leftbound, t_rightbound, 1
+
+               partion_x_mean = partion_x_mean + A(t,2)
+
+          enddo
+     
+          call mpi_allreduce(partion_x_mean, x_mean, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
           x_mean = x_mean / N_d
      
      endif
@@ -110,7 +152,7 @@ implicit none
      
      
      ! [Вычисление коррелограммы прямым способом]
-     subroutine F2_correlogram_direct(A, x_mean, N, N_d, bias_fix)
+     subroutine F2_correlogram_direct(A, x_mean, N, N_d, bias_fix, mpiSize, mpiRank)
      implicit none
      
      integer(4), intent(in) :: N          ! Размер выборки
@@ -119,24 +161,51 @@ implicit none
      real(8), intent(in)    :: x_mean     ! Среднее значение выборки с учётом исключений
      real(8), intent(in)    :: N_d        ! Овеществление N
      
-     integer(4) t, k ! Вспомогательные переменные
-     real(8) k_d     ! Овеществление k
-     real(8) s1, s2  ! Временные держатели сумм для элементов выражений
-     real(8) diff    ! Разность (A(t,2) - x_mean)
+     ! Переменные для деления первого подпространства итераций на порции
+     integer(4) k_size                    ! Общий размер пространства интераций
+     integer(4) partion_size              ! Размер порции
+     integer(4) partion_size_mod          ! Остаток от деления k_size на mpiSize
+     integer(4) k_leftbound, k_rightbound ! Границы индексов для данного ранга
+     integer(4) partion_shift             ! Величина mpiRank * partion_size
      
-     real(8) r(0:N-1) ! Вектор значений коррелограммы
+     ! Вспомогательные переменные при обмене сообщениями
+     integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i
+     
+     ! Стандартные и вспомогательные переменные MPI
+     integer(4), intent(in) :: mpiSize ! Размер коммуникатора
+     integer(4), intent(in) :: mpiRank ! Ранг процесса
+     integer(4) status ! Переменная статуса передачи
+     integer(4) ierr   ! Переменная ошибки
+     
+     integer(4) t, k, i         ! Вспомогательные переменные
+     real(8) s1, s2, partion_s2 ! Временные держатели сумм для элементов выражений
+     real(8) diff               ! Разность (A(t,2) - x_mean)
+     
+     real(8) r(0:N - 1)    ! Вектор значений коррелограммы
+     real(8) k_d(0:N - 1)  ! Вектор значений лага (k)
+     
+     ! Вычисление размеров порций и их границ
+     
+     k_size = N
+     
+     call partion_sizes(k_size, 0, mpiSize, mpiRank, partion_size, partion_shift, partion_size_mod, k_leftbound, k_rightbound)
      
      ! Вычисление коэффициента автокорреляции c(0)
      
-     s2 = 0d0
+     ! Выполнение процесcом своей порции [1]
      
-     do t = 0, N - 1
+     s2 = 0d0
+     partion_s2 = 0d0
+     
+     do t = k_leftbound, k_rightbound
 
           diff = (A(t,2) - x_mean)
-
-          s2 = s2 + diff * diff
+          partion_s2 = partion_s2 + diff * diff
 
      enddo
+     
+     ! Суммирование элементов массива diff и передача результата всем процессам
+     call mpi_allreduce(partion_s2, s2, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
      
      ! Вычисление коэффициентов автокорреляции c(k) по 
      ! формуле 4.1 из Chatfield - The Analysis of 
@@ -150,36 +219,35 @@ implicit none
      open(10, file="direct_correlogram.dat")
      write(10, '(a, /, a, 5x, a, /, a)') '#', '# Time Lag, Days, k', 'Autocorrelation Coefficient, r(k)', '#'
      
+     ! Выполнение процесcом своей порции [2]
+     
      if (bias_fix .eq. 0) then ! Приводить коэффициенты корреляции к несмещённой оценке?
      
-          do k = 0, N - 1
+          do k = k_leftbound, k_rightbound, 1
 
-               k_d = k
+               k_d(k) = k
 
                s1 = 0d0
 
-               do t = 0, N - k - 1
+               do t = 0, N - k - 1, 1
 
                     s1 = s1 + (A(t,2) - x_mean) * (A(t+k,2) - x_mean)
 
                enddo
 
-               r(k) = s1 * N_d / (N_d - k_d) / s2
-
-               write(10, '(f11.1, 17x, e23.15)') k_d, r(k)
+               r(k) = s1 * N_d / (N_d - k_d(k)) / s2
 
           enddo
-          close(10)
      
      else
      
-          do k = 0, N - 1
+          do k = k_leftbound, k_rightbound, 1
 
-               k_d = k
+               k_d(k) = k
 
                s1 = 0d0
 
-               do t = 0, N - k - 1
+               do t = 0, N - k - 1, 1
 
                     s1 = s1 + (A(t,2) - x_mean) * (A(t+k,2) - x_mean)
 
@@ -187,18 +255,69 @@ implicit none
 
                r(k) = s1 / s2
 
-               write(10, '(f11.1, 17x, e23.15)') k_d, r(k)
-
           enddo
-          close(10)
      
+     endif
+     
+     ! Передача всех порций процессу 0
+     
+     if (mpiRank .gt. 0) then
+     
+          call mpi_send(k_d(k_leftbound:k_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(r(k_leftbound:k_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          
+     else
+     
+          do i = 1, mpiSize - 1
+               
+               send_leftbound = i * partion_size
+               
+               if (i .eq. mpiSize - 1 .and. partion_size_mod .ne. 0) then
+               
+                    send_rightbound = (partion_size + partion_size_mod) + i * partion_size - 1
+                    
+                    call mpi_recv(k_d(send_leftbound:send_rightbound), (partion_size + partion_size_mod), MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+                    call mpi_recv(r(send_leftbound:send_rightbound), (partion_size + partion_size_mod), MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               
+               else
+               
+                    send_rightbound = partion_size + i * partion_size - 1
+                    
+                    call mpi_recv(k_d(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+                    call mpi_recv(r(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               
+               endif
+               
+          enddo
+          
+     endif
+     
+     ! Сообщение результатов другим процессам
+     
+     call mpi_bcast(k_d, k_size, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+     call mpi_bcast(r, k_size, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+     
+     ! Вывод результата первым процессом
+     
+     if (mpiRank .eq. 0) then
+     open(17, file="direct_correlogram.dat")
+     
+     write(17, '(a, /, a, 5x, a, /, a)') '#', '# Time Lag, Days, k', 'Autocorrelation Coefficient, r(k)', '#'     
+     
+     do k = 0, N - 1, 1
+      
+          write(17, '(f11.1, 17x, e23.15)') k_d(k), r(k)
+     
+     enddo
+     
+     close(17)
      endif
      
      end subroutine
 
 
      ! [Вычисление периодограммы]
-     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_index_array, N, N_d, N_wif, x_mean, pi, I_p, use_if)
+     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_index_array, N, N_d, N_wif, x_mean, pi, I_p, use_if, mpiSize, mpiRank)
      implicit none
      
      integer(4), intent(in) :: leftbound, rightbound    ! Границы рабочего диапазона частот
@@ -214,11 +333,29 @@ implicit none
      real(8), intent(in)    :: N_d         ! Овеществление N
      real(8), intent(in)    :: leftbound_d ! Овеществление leftbound
      
+     ! Переменные для деления первого подпространства итераций на порции
+     integer(4) p_size                    ! Общий размер пространства интераций
+     integer(4) partion_size              ! Размер порции
+     integer(4) partion_size_mod          ! Остаток от деления p_size на mpiSize
+     integer(4) p_leftbound, p_rightbound ! Границы индексов для данного ранга
+     integer(4) partion_shift             ! Величина mpiRank * partion_size
+     
+     ! Вспомогательные переменные при обмене сообщениями
+     integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i
+     
+     ! Стандартные и вспомогательные переменные MPI
+     integer(4), intent(in) :: mpiSize ! Размер коммуникатора
+     integer(4), intent(in) :: mpiRank ! Ранг процесса
+     integer(4) status ! Переменная статуса передачи
+     integer(4) ierr   ! Переменная ошибки
+     
      real(8), intent(out) :: I_p(leftbound:rightbound) ! Массив значений периодограммы
+     real(8) period(leftbound:rightbound)              ! Вектор значений периодов
+     real(8) frequency(leftbound:rightbound)           ! Вектор значений частот
      
      real(8) p_d, j_d ! Овеществления
      
-     integer(4) p, t, j ! Вспомогательные переменные
+     integer(4) p, t, j, i ! Вспомогательные переменные
      
      real(8) s1, s2    ! Временные держатели сумм для элементов выражений
      real(8) diff      ! Разность (A(j,2) - x_mean)
@@ -227,12 +364,17 @@ implicit none
      real(8) cos_value ! Значение косинуса от аргумента arg
      real(8) sin_value ! Значение синуса от аргумента arg
      
-     open(11, file="periodogram.dat")
-     write(11, '(a, /, a, 6x, a, 6x, a, /, a)') '#', '#    Period, Days, T', 'Frequency, 1/Days, v', 'Periodogram, I(v)', '#'
+     ! Вычисление размеров порций и их границ
+     
+     p_size = rightbound - leftbound + 1
+     
+     call partion_sizes(p_size, leftbound, mpiSize, mpiRank, partion_size, partion_shift, partion_size_mod, p_leftbound, p_rightbound)
+     
+     ! Выполнение процесcом своей порции     
      
      if (use_if .eq. 0) then ! Использовать массив исключений?
      
-          do p = leftbound, rightbound, 1
+          do p = p_leftbound, p_rightbound, 1
 
                p_d = p
                p_cur = leftbound_d - 1d0 + p_d * p_step
@@ -240,7 +382,7 @@ implicit none
                s1 = 0d0
                s2 = 0d0
 
-               do t = 0, N_wif - 1
+               do t = 0, N_wif - 1, 1
 
                     ! Применение массива исключений:
                     ! суммирование происходит только 
@@ -271,17 +413,17 @@ implicit none
                ! вычитанием среднего из выборки)
 
                I_p(p) = (s1 * s1 + s2 * s2) / (N_wif * pi)
-          
+               
                if (abs(I_p(p)) .le. 1e-15) I_p(p) = 0d0
-
-               write(11, '(e23.15, 1x, e23.15, 1x, e23.15)') N_d / p_cur, p_cur / N_d, I_p(p)
-
+               
+               period(p) = N_d / p_cur
+               frequency(p) = p_cur / N_d
+          
           enddo
-          close(11)
      
      else
      
-          do p = leftbound, rightbound, 1
+          do p = p_leftbound, p_rightbound, 1
 
                p_d = p
                p_cur = leftbound_d - 1d0 + p_d * p_step
@@ -289,7 +431,7 @@ implicit none
                s1 = 0d0
                s2 = 0d0
 
-               do t = 0, N - 1
+               do t = 0, N - 1, 1
      
                     ! Применение массива исключений:
                     ! суммирование происходит только 
@@ -318,14 +460,72 @@ implicit none
                ! вычитанием среднего из выборки)
 
                I_p(p) = (s1 * s1 + s2 * s2) / (N_d * pi)
-          
+               
                if (abs(I_p(p)) .le. 1e-15) I_p(p) = 0d0
-
-               write(11, '(e23.15, 1x, e23.15, 1x, e23.15)') N_d / p_cur, p_cur / N_d, I_p(p)
-
+               
+               period(p) = N_d / p_cur
+               frequency(p) = p_cur / N_d
+          
           enddo
-          close(11)
      
+     endif
+     
+     ! Передача всех порций процессу 0
+     
+     if (mpiRank .gt. 0) then
+     
+          call mpi_send(period(p_leftbound:p_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(frequency(p_leftbound:p_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(I_p(p_leftbound:p_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          
+     else
+     
+          do i = 1, mpiSize - 1
+               
+               send_leftbound = leftbound + i * partion_size
+               
+               if (i .eq. mpiSize - 1 .and. partion_size_mod .ne. 0) then
+               
+                    send_rightbound = leftbound + (partion_size + partion_size_mod) + i * partion_size - 1
+                    
+                    call mpi_recv(period(send_leftbound:send_rightbound), (partion_size + partion_size_mod), MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+                    call mpi_recv(frequency(send_leftbound:send_rightbound), (partion_size + partion_size_mod), MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+                    call mpi_recv(I_p(send_leftbound:send_rightbound), (partion_size + partion_size_mod), MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               
+               else
+               
+                    send_rightbound = leftbound + partion_size + i * partion_size - 1
+                    
+                    call mpi_recv(period(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+                    call mpi_recv(frequency(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+                    call mpi_recv(I_p(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               
+               endif
+               
+          enddo
+          
+     endif
+     
+     ! Сообщение результатов другим процессам
+     
+     call mpi_bcast(period, p_size, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+     call mpi_bcast(frequency, p_size, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+     call mpi_bcast(I_p, p_size, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+     
+     ! Вывод результата первым процессом
+     
+     if (mpiRank .eq. 0) then
+     open(18, file="periodogram.dat")
+     
+     write(18, '(a, /, a, 6x, a, 6x, a, /, a)') '#', '#    Period, Days, T', 'Frequency, 1/Days, v', 'Periodogram, I(v)', '#'
+     
+     do p = leftbound, rightbound, 1
+      
+          write(18, '(e23.15, 1x, e23.15, 1x, e23.15)') period(p), frequency(p), I_p(p)
+     
+     enddo
+     
+     close(18)
      endif
      
      end subroutine
@@ -333,7 +533,7 @@ implicit none
      
      ! [Вычисление коррелограммы через применение обратного преобразования Фурье к периодограмме]
      subroutine F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, &
-     &pi, bias_fix)
+     &pi, bias_fix, mpiSize, mpiRank)
      implicit none
      
      integer(4), intent(in) :: N                         ! Размер выборки
@@ -346,16 +546,38 @@ implicit none
      real(8), intent(in)    :: leftbound_d               ! Овеществление leftbound
      real(8), intent(in)    :: pi                        ! Число pi
      
+     ! Переменные для деления первого подпространства итераций на порции
+     integer(4) t_size                    ! Общий размер пространства интераций
+     integer(4) partion_size              ! Размер порции
+     integer(4) partion_size_mod          ! Остаток от деления t_size на mpiSize
+     integer(4) t_leftbound, t_rightbound ! Границы индексов для данного ранга
+     integer(4) partion_shift             ! Величина mpiRank * partion_size
+     
+     ! Вспомогательные переменные при обмене сообщениями
+     integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i
+     
+     ! Стандартные и вспомогательные переменные MPI
+     integer(4), intent(in) :: mpiSize ! Размер коммуникатора
+     integer(4), intent(in) :: mpiRank ! Ранг процесса
+     integer(4) status ! Переменная статуса передачи
+     integer(4) ierr   ! Переменная ошибки
+     
      real(8) p_d, t_d, t_koef_d ! Овеществления
      
-     integer(4) p, t   ! Вспомогательные переменные
-     real(8) s1, s2    ! Временные держатели сумм для элементов выражений
-     real(8) p_cur     ! Текущее значение p
-     real(8) t_cur     ! Текущее значение t
-     real(8) arg       ! Аргумент тригонометрических функций
-     real(8) cos_value ! Значение косинуса от аргумента arg
+     integer(4) p, t, i ! Вспомогательные переменные
+     real(8) s1, s2     ! Временные держатели сумм для элементов выражений
+     real(8) p_cur      ! Текущее значение p
+     real(8) arg        ! Аргумент тригонометрических функций
+     real(8) cos_value  ! Значение косинуса от аргумента arg
      
-     real(8) C(0:t_koef*(N - 1)) ! Вектор значений коррелограммы
+     real(8) t_cur(0:t_koef * (N - 1)) ! Вектор текущих значений t
+     real(8) C(0:t_koef * (N - 1))     ! Вектор значений коррелограммы
+     
+     ! Вычисление размеров порций и их границ
+     
+     t_size = t_koef * (N - 1) + 1
+     
+     call partion_sizes(t_size, 0, mpiSize, mpiRank, partion_size, partion_shift, partion_size_mod, t_leftbound, t_rightbound)
      
      ! Вычисление коэффициента автокорреляции c(0)
      
@@ -365,18 +587,17 @@ implicit none
      ! Вычисление коэффициентов автокорреляции c(k)
      ! и деление их на значение коэффициента c(0)
      
-     t_koef_d = t_koef
+     ! Выполнение процесcом своей порции
      
-     open(12, file = 'reverse_correlogram.dat')
-     write(12, '(a, /, a, 5x, a, /, a)') '#', '# Time Lag, Days, k', 'Autocorrelation Coefficient, r(k)', '#'
+     t_koef_d = t_koef
      
      if (bias_fix .eq. 0) then ! Приводить коэффициенты корреляции к несмещённой оценке?
      
-          do t = 0, t_koef * (N - 1), 1
+          do t = t_leftbound, t_rightbound, 1
      
                t_d = t
-               t_cur = 0d0 + t_d / t_koef_d
-          
+               t_cur(t) = 0d0 + t_d / t_koef_d
+               
                s1 = 0d0
           
                do p = leftbound, rightbound, 1
@@ -384,7 +605,7 @@ implicit none
                     p_d = p
                     p_cur = leftbound_d - 1d0 + p_d * p_step
           
-                    arg = 2d0 * pi * p_cur * t_cur / N_d
+                    arg = 2d0 * pi * p_cur * t_cur(t) / N_d
 
                     cos_value = dcos(arg)
 
@@ -400,22 +621,18 @@ implicit none
                ! 73 (вычисляя величину c(k)/c(0)) из Витязева - 
                ! Спектрально-корреляционный анализ равномерных рядов, стр. 25
           
-               C(t) = s1 * N_d / (N_d - t_cur) / s2
+               C(t) = s1 * N_d / (N_d - t_cur(t)) / s2
 
                if (abs(C(t)) .le. 1e-15) C(t) = 0d0
 
-               write(12, '(f11.1, 17x, e23.15)') t_cur, C(t)
-     
           enddo     
-          close(12)
      
      else
           
-          open(12, file = 'reverse_correlogram.dat')
-          do t = 0, t_koef * (N - 1), 1
+          do t = t_leftbound, t_rightbound, 1
           
                t_d = t
-               t_cur = 0d0 + t_d / t_koef_d
+               t_cur(t) = 0d0 + t_d / t_koef_d
                
                s1 = 0d0
                
@@ -424,7 +641,7 @@ implicit none
                     p_d = p
                     p_cur = leftbound_d - 1d0 + p_d * p_step
                
-                    arg = 2d0 * pi * p_cur * t_cur / N_d
+                    arg = 2d0 * pi * p_cur * t_cur(t) / N_d
      
                     cos_value = dcos(arg)
 
@@ -444,11 +661,57 @@ implicit none
 
                if (abs(C(t)) .le. 1e-15) C(t) = 0d0
 
-               write(12, '(f11.1, 17x, e23.15)') t_cur, C(t)
+          enddo  
+          
+     endif   
      
-          enddo     
-          close(12)
+     ! Передача всех порций процессу 0
      
+     if (mpiRank .gt. 0) then
+     
+          call mpi_send(t_cur(t_leftbound:t_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          call mpi_send(C(t_leftbound:t_rightbound), partion_size, MPI_REAL8, 0, mpiRank, MPI_COMM_WORLD, ierr)
+          
+     else
+     
+          do i = 1, mpiSize - 1
+               
+               send_leftbound = i * partion_size
+               
+               if (i .eq. mpiSize - 1 .and. partion_size_mod .ne. 0) then
+               
+                    send_rightbound = (partion_size + partion_size_mod) + i * partion_size - 1
+                    
+                    call mpi_recv(t_cur(send_leftbound:send_rightbound), (partion_size + partion_size_mod), MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+                    call mpi_recv(C(send_leftbound:send_rightbound), (partion_size + partion_size_mod), MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               
+               else
+               
+                    send_rightbound = partion_size + i * partion_size - 1
+                    
+                    call mpi_recv(t_cur(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+                    call mpi_recv(C(send_leftbound:send_rightbound), partion_size, MPI_REAL8, i, i, MPI_COMM_WORLD, status, ierr)
+               
+               endif
+               
+          enddo
+          
+     endif
+     
+     ! Вывод результата первым процессом
+     
+     if (mpiRank .eq. 0) then
+     open(19, file = 'reverse_correlogram.dat')
+     
+     write(19, '(a, /, a, 5x, a, /, a)') '#', '# Time Lag, Days, k', 'Autocorrelation Coefficient, r(k)', '#'
+     
+     do t = 0, t_koef * (N - 1), 1
+      
+          write(19, '(f11.1, 17x, e23.15)') t_cur(t), C(t)
+     
+     enddo
+     
+     close(19)
      endif
      
      end subroutine

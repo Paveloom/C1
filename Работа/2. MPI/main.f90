@@ -1,4 +1,5 @@
 program main
+use mpi
 use subprograms
 implicit none
 
@@ -44,55 +45,74 @@ implicit none
      integer(4) use_if               ! Использовать массив исключений?
      integer(4) bias_fix             ! Приводить коэффициенты корреляции к несмещённой оценке?
      integer(4) index_array_manually ! Заполнять массив исключений вручную?
+     
+     ! Стандартные и вспомогательные переменные MPI
+     integer(4) mpiSize ! Размер коммуникатора
+     integer(4) mpiRank ! Ранг процесса
+     integer(4) mpiErr  ! Переменная ошибки
+     integer(4) mpiNinp ! Номер устройства ввода данных из файла settings
+     integer(4) mpiMinp ! Номер устройства ввода данных из файла input
 
-     open(9, file = 'settings')
+     ! Инициализация MPI
+     call mpi_init(mpiErr)
+
+     ! Определение mpiSize и mpiRank
+     call mpi_comm_size(MPI_COMM_WORLD, mpiSize, mpiErr)
+     call mpi_comm_rank(MPI_COMM_WORLD, mpiRank, mpiErr)
+
+     mpiNinp = mpiRank + 9
+     mpiMinp = mpiNinp + mpiSize
+     
+     open(mpiNinp, file = 'settings')
      
      ! Считывание размера выборки
-     read(9,'(/)'); read(9,*) N
+     read(mpiNinp,'(/)'); read(mpiNinp,*) N
      
      ! Использовать массив исключений?
-     read(9,'(///)'); read(9,*) use_if
+     read(mpiNinp,'(///)'); read(mpiNinp,*) use_if
      
      ! Заполнять массив исключений вручную (указание в процедуре F0 в коде модуля
      ! программы) или искать значения индексов исключений программно (может замедлить программу)?
-     read(9,'(/////)'); read(9,*) index_array_manually
+     read(mpiNinp,'(/////)'); read(mpiNinp,*) index_array_manually
      
      ! Считывание числа исключений
-     read(9,'(//)'); read(9,*) N_if
+     read(mpiNinp,'(//)'); read(mpiNinp,*) N_if
      
      ! Использовать указанный диапазон частот для вычисления периодограммы
      ! или считать по полному диапазону?
-     read(9,'(////)'); read(9,*) full_range
+     read(mpiNinp,'(////)'); read(mpiNinp,*) full_range
      
      ! Приводить коэффициенты корреляции к несмещённой оценке?
-     read(9,'(///)'); read(9,*) bias_fix
+     read(mpiNinp,'(///)'); read(mpiNinp,*) bias_fix
      
      ! Считывание множителя дискретизации множителей p (для частот)
-     read(9,'(//)'); read(9,*) p_koef
+     read(mpiNinp,'(//)'); read(mpiNinp,*) p_koef
      
      ! Считывание множителя дискретизации множителей t (для периодов)
-     read(9,'(//)'); read(9,*) t_koef
+     read(mpiNinp,'(//)'); read(mpiNinp,*) t_koef
      
      ! Считывание границ рабочего диапазона частот
-     read(9,'(//)'); read(9,*) leftbound
-                     read(9,*) rightbound
+     read(mpiNinp,'(//)'); read(mpiNinp,*) leftbound
+                           read(mpiNinp,*) rightbound
      
-     close(9)
-
+     close(mpiNinp)
+     
      ! Овеществление N
      N_d = N
      
      ! Исходные данные
-     allocate(A(0:N-1,2), stat = ier)
+     allocate(A(0:N - 1,2), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива A'
      
      ! Считывание исходных данных
 
+     open(mpiMinp, file = 'input')
      do i = 0, N - 1
 
-          read(*,*) A(i,1), A(i,2)
+          read(mpiMinp,*) A(i,1), A(i,2)
 
      enddo
+     close(mpiMinp)
      
      ! Вычисление размера выборки с исключениями
      
@@ -119,7 +139,7 @@ implicit none
      endif
 
      ! Массив индексов с учётом исключений
-     allocate(N_index_array(0:N_wif-1), stat = ier)
+     allocate(N_index_array(0:N_wif - 1), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива N_index_array'
      
      ! [Заполнение массива индексов-исключений]
@@ -144,10 +164,10 @@ implicit none
      endif
 
      ! [Вычисление среднего значения выборки]
-     call F1_mean(A, x_mean, N_index_array, N_wif, N, N_d, use_if)
+     call F1_mean(A, x_mean, N_index_array, N_wif, N, N_d, use_if, mpiSize, mpiRank)
 
      ! [Вычисление коррелограммы прямым способом]
-     call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix)
+     call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix, mpiSize, mpiRank)
 
      ! Определение pi
      pi = 4d0 * datan(1d0)
@@ -174,13 +194,15 @@ implicit none
      if (ier .ne. 0) stop 'Не удалось выделить память для массива I_p'
 
      ! [Вычисление периодограммы]
-     call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_index_array, N, N_d, N_wif, x_mean, pi, I_p, use_if)
+     call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_index_array, N, N_d, N_wif, x_mean, pi, I_p, use_if, mpiSize, mpiRank)
      deallocate(A)
      if (use_if .eq. 0) deallocate(N_index_array)
 
      ! [Вычисление коррелограммы через применение обратного преобразования Фурье к периодограмме]
      call F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, pi, &
-     &bias_fix)
+     &bias_fix, mpiSize, mpiRank)
      deallocate(I_p)
+     
+     call mpi_finalize(mpiErr)
 
 end
