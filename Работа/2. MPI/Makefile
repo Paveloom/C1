@@ -1,43 +1,54 @@
 
+     # Заглушка на вывод сообщений указанными правилами
+     # (без указания имён подавляет вывод со стороны make-файла у всех правил)
+     .SILENT: 
+
      # Настройки компиляции программ
      
      comp := mpiifort
      opt := -c -debug -warn all
      pattern := f90
-     allpattern := *.$(pattern)
-     anypattern := %.$(pattern)
-     source := $(wildcard $(allpattern))
-     mod := $(patsubst $(anypattern), %.mod, $(source))
-     obj := $(patsubst $(anypattern), %.o, $(source))
+     main_name := main
      
-     # Заглушка на вывод сообщений указанными правилами
-     # (без указания имён подавляет вывод со стороны make-файла у всех правил)
-     .SILENT: 
-
+     # Директория с исходниками
+     source_path := ./Исходники/
+     
+     # Правила-зависимости (при необходимости)
+     $(source_path)$(main_name).o : $(source_path)subprograms.mod
+     $(source_path)subprograms.mod : $(source_path)mpi_subprograms.mod
+     
+     # Распределение исходных файлов по переменным
+     
+     allpattern := $(source_path)*.$(pattern)
+     anypattern := $(source_path)%.$(pattern)
+     source := $(wildcard $(allpattern))
+     mod := $(patsubst %.$(pattern), %.mod, $(filter-out %$(main_name).$(pattern), $(source)))
+     obj_main := $(patsubst %.$(pattern), %.o, $(filter %$(main_name).$(pattern), $(source)))
+     obj_mod := $(patsubst %.mod, %.o, $(mod))
+     
      # Блок правил для компиляции объектных файлов
       
-     main : $(obj)
-	       $(comp) $^ -o $@
+     $(main_name) : $(obj_main) $(obj_mod)
+	               $(comp) $^ -o $@
 
-     %.o : $(anypattern)
-	      $(comp) $(opt) $< -o $@
+     $(source_path)%.mod : $(anypattern)
+	                      $(comp) $(opt) -module $(source_path) $<
+	                      if [ "./" != "$(source_path)" ]; then\
+	                           mv -f $(patsubst $(source_path)%.mod, %.o, ./$@) $(source_path);\
+	                      fi
 
-     %.mod : $(anypattern)
-	        $(comp) $(opt) $<
-
-     # Блок правил-зависимостей (при необходимости)
-     main.o : subprograms.mod
-     subprograms.mod : mpi_subprograms.mod
-
-     # Блок правил для инициализации make-файла для сборки программы
+     $(obj_main) : $(source_path)$(main_name).$(pattern)
+	              $(comp) $(opt) $< -o $@
+        
+     # Блок правил для сборки программы
       
      input :
 	        touch input
       
-     result : main input
+     result : $(main_name) input
 	         time mpiexec -np 4 ./$< > output
 	        
-     result-r : main input
+     result-r : input
 		      rm output
 		      make result
 		      cat output
@@ -45,10 +56,10 @@
      # Блок правил для очистки директории
      
      clean :
-	        rm -f $(obj) $(mod) main
+	        rm -f $(obj_main) $(obj_mod) $(mod) $(main_name)
 
      clean-all :
-	            rm -f *.o *.mod main *.eps *.dat result
+	            rm -f *.o *.mod $(main_name) *.eps *.dat result
 
 
 
@@ -137,37 +148,4 @@
 			git add Makefile
 			git commit -m "Стартовый make-файл."
 			git push -u origin master
-			
-			
-			
-     # Забирает последний коммит из master и копирует его в feature с тем же содержимым
-     
-     ifeq (git-ch,$(firstword $(MAKECMDGOALS)))
-          line := $(shell git log master --oneline | head -n 1)
-          hash := $(wordlist 1, 1, $(line))
-          commit := $(wordlist 2, $(words $(line)), $(line))
-          $(eval $(line):;@#)
-          $(eval $(hash):;@#)
-          $(eval $(commit):;@#)
-     endif
-     
-     git-ch : 
-	         git checkout features
-	         echo $(hash)
-	         echo $(commit)
-	         git cherry-pick -n $(hash)
-	         git add -A
-	         git commit -m "$(commit)"
-	         
-	# Правило на работу в ветке feature
-	
-     git-f :
-		 git add -A
-		 git commit -e
-		 git push --force-with-lease origin features
-
-     git-fam :
-	          git add -A
-	          git commit --amend
-	          git push --force-with-lease origin features  
 
