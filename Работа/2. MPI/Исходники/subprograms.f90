@@ -1,5 +1,4 @@
 module subprograms
-use mpi
 use mpi_subprograms
 implicit none
 

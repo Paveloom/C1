@@ -110,7 +110,7 @@ implicit none
 
                if (A(i,2) .ne. 0d0) then
 
-                    N_wif = N_wif + 1; cycle
+                    N_wif = N_wif + 1
 
                endif
 
@@ -126,7 +126,7 @@ implicit none
      
      if (use_if .eq. 0) then ! Использовать массив исключений?
           
-          if (index_array_manually .eq. 0) then ! Заполнять массив исключений вручную
+          if (index_array_manually .eq. 0) then ! Заполнять массив исключений вручную?
           
                allocate(N_if_array(N_if), stat = ier)
                if (ier .ne. 0) stop 'Не удалось выделить память для массива N_if_array'

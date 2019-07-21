@@ -1,4 +1,67 @@
 
+     # Заглушка на вывод сообщений указанными правилами
+     # (без указания имён подавляет вывод со стороны make-файла у всех правил)
+     .SILENT: 
+
+     # Настройки компиляции программ
+     
+     comp := ifort
+     opt := -qopenmp -Ofast
+     pattern := f90
+     main_name := main
+     
+     # Директория с исходниками
+     source_path := ./Исходники/
+     
+     # Правила-зависимости (при необходимости)
+     $(source_path)$(main_name).o : $(source_path)subprograms.mod
+     
+     # Распределение исходных файлов по переменным
+     
+     allpattern := $(source_path)*.$(pattern)
+     anypattern := $(source_path)%.$(pattern)
+     source := $(wildcard $(allpattern))
+     mod := $(patsubst %.$(pattern), %.mod, $(filter-out %$(main_name).$(pattern), $(source)))
+     obj_main := $(patsubst %.$(pattern), %.o, $(filter %$(main_name).$(pattern), $(source)))
+     obj_mod := $(patsubst %.mod, %.o, $(mod))
+     
+     # Блок правил для компиляции объектных файлов
+      
+     $(main_name) : $(obj_main) $(obj_mod)
+	               $(comp) $(opt) $^ -o $@
+
+     $(source_path)%.mod : $(anypattern)
+	                      $(comp) -c $(opt) -module $(source_path) $<
+	                      if [ "./" != "$(source_path)" ]; then\
+	                           mv -f $(patsubst $(source_path)%.mod, %.o, ./$@) $(source_path);\
+	                      fi
+
+     $(obj_main) : $(source_path)$(main_name).$(pattern)
+	              $(comp) -c $(opt) $< -o $@
+        
+     # Блок правил для сборки программы
+      
+     input :
+	        touch input
+      
+     result : $(main_name) input
+	         time ./$< < input > output
+	        
+     result-r : input
+		      rm output
+		      make result
+		      cat output
+
+     # Блок правил для очистки директории
+     
+     clean :
+	        rm -f $(obj_main) $(obj_mod) $(mod) $(main_name)
+
+     clean-all :
+	            rm -f *.o *.mod $(main_name) *.eps *.dat result
+
+
+
      # Блок правил для загрузки кода на Github
 
      # Правила для проверки статуса репозитория
