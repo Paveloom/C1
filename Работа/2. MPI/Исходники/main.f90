@@ -12,9 +12,6 @@ implicit none
      real(8)    x_mean ! Среднее значение выборки с учётом исключений
      real(8)    pi     ! Число pi
 
-     ! Массив индексов-исключений
-     integer(4), allocatable, dimension(:) :: N_if_array
-
      ! Массив индексов с учётом исключений
      integer(4), allocatable, dimension(:) :: N_index_array
 
@@ -137,41 +134,10 @@ implicit none
           
      endif
 
-     ! Массив индексов с учётом исключений
-     allocate(N_index_array(0:N_wif - 1), stat = ier)
-     if (ier .ne. 0) stop 'Не удалось выделить память для массива N_index_array'
-     
-     ! [Заполнение массива индексов-исключений]
-     
-     if (use_if .eq. 0) then ! Использовать массив исключений?
-          
-          if (index_array_manually .eq. 0) then ! Заполнять массив исключений вручную?
-          
-               allocate(N_if_array(N_if), stat = ier)
-               if (ier .ne. 0) stop 'Не удалось выделить память для массива N_if_array'
-          
-               call F0_get_index_array(N_index_array, N_wif, N, N_if_array)
-               
-               deallocate(N_if_array)
-          
-          else
-          
-               call F0_get_index_array(N_index_array, N_wif, N, A=A)
-          
-          endif
-          
-     endif
-
-     ! [Вычисление среднего значения выборки]
-     call F1_mean(A, x_mean, N_index_array, N_wif, N, N_d, use_if, mpiSize, mpiRank)
-
-     ! [Вычисление коррелограммы прямым способом]
-     call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix, mpiSize, mpiRank)
-
      ! Определение pi
      pi = 4d0 * datan(1d0)
 
-     ! Вычисление шага дисретизации для множителей частот
+     ! Вычисление шага дискретизации для множителей частот
 
      p_num = N * p_koef     ! Общее число множителей p
      p_num_d = p_num
@@ -187,19 +153,71 @@ implicit none
      endif
      
      leftbound_d = leftbound
-
+     
      ! Массив значений периодограммы
      allocate(I_p(leftbound:rightbound), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива I_p'
-
-     ! [Вычисление периодограммы]
-     call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_index_array, N, N_d, N_wif, x_mean, pi, I_p, use_if, mpiSize, mpiRank)
+     
+     ! [Заполнение массива индексов-исключений, вычисление среднего, вычисление 
+     !  коррелограммы, вычисление периодограммы]
+     
+     if (use_if .eq. 0) then ! Использовать массив исключений?
+     
+          ! Массив индексов с учётом исключений
+          allocate(N_index_array(0:N_wif - 1), stat = ier)
+          if (ier .ne. 0) stop 'Не удалось выделить память для массива N_index_array'
+          
+          if (index_array_manually .eq. 0) then ! Заполнять массив исключений вручную?
+          
+               ! [Заполнение массива индексов-исключений]
+               call F0_get_index_array(N_index_array, N_wif, N_if, N)
+               
+               ! [Вычисление среднего значения выборки]
+               call F1_mean(A, x_mean, N_wif, N, N_d, N_index_array, mpiSize, mpiRank)
+               
+               ! [Вычисление коррелограммы прямым способом]
+               call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix, mpiSize, mpiRank)
+               
+               ! [Вычисление периодограммы]
+               call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p, N_index_array, mpiSize, mpiRank)
+               
+               deallocate(N_index_array)
+               
+          else
+          
+               ! [Заполнение массива индексов-исключений]
+               call F0_get_index_array(N_index_array, N_wif, N_if, N, A)
+               
+               ! [Вычисление среднего значения выборки]
+               call F1_mean(A, x_mean, N_wif, N, N_d, N_index_array, mpiSize, mpiRank)
+               
+               ! [Вычисление коррелограммы прямым способом]
+               call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix, mpiSize, mpiRank)
+               
+               ! [Вычисление периодограммы]
+               call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p, N_index_array, mpiSize, mpiRank)
+          
+               deallocate(N_index_array)
+          
+          endif
+          
+     else
+     
+          ! [Вычисление среднего значения выборки]
+          call F1_mean(A, x_mean, N_wif, N, N_d, N_index_array, mpiSize, mpiRank)
+          
+          ! [Вычисление коррелограммы прямым способом]
+          call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix, mpiSize, mpiRank)
+          
+          ! [Вычисление периодограммы]
+          call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p, N_index_array, mpiSize, mpiRank)
+          
+     endif
+     
      deallocate(A)
-     if (use_if .eq. 0) deallocate(N_index_array)
 
      ! [Вычисление коррелограммы через применение обратного преобразования Фурье к периодограмме]
-     call F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, pi, &
-     &bias_fix, mpiSize, mpiRank)
+     call F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, pi, bias_fix, mpiSize, mpiRank)
      deallocate(I_p)
      
      call mpi_finalize(mpiErr)

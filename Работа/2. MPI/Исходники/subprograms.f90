@@ -7,32 +7,38 @@ implicit none
      contains
 
      ! [Формирование массива N_index_array и считывание исходных данных]
-     subroutine F0_get_index_array(N_index_array, N_wif, N, N_if_array, A)
+     subroutine F0_get_index_array(N_index_array, N_wif, N_if, N, A)
      implicit none
      
      integer(4), intent(in) :: N_wif ! Размер выборки с исключениями (N - N_if)
+     integer(4), intent(in) :: N_if  ! Число исключений
      integer(4), intent(in) :: N     ! Размер выборки
 
      integer(4), intent(out) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений
+     integer(4), allocatable, dimension(:) :: N_if_array ! Массив индексов-исключений
      
      ! Вспомогательные переменные
-     integer(4) i, k              
+     integer(4) i, k, ier
      
-     ! Опциональные переменные
-     integer(4), optional, intent(inout) :: N_if_array(N_wif) ! Массив индексов-исключений
-     real(8), optional, intent(in)       :: A(0:N-1,2) ! Матрица исходных данных
+     ! Опциональная переменная
+     real(8), optional, intent(in) :: A(0:N-1,2) ! Матрица исходных данных
      
-     if (present(N_if_array)) then
+     if (.not.(present(A))) then
      
-          ! Заполнение массива индексов-исключений
+          allocate(N_if_array(1:N_if + 1), stat = ier)
+          if (ier .ne. 0) stop 'Не удалось выделить память для массива N_if_array'
+     
+          ! Заполнение массива индексов-исключений: первые N_if элементов заполняются
+          ! индексами-исключениями, а последний элемент намеренно приравнивается значению 0
+          
           N_if_array = (/ 2, (i, i = 4,8), 10, 54, 133, (i, i = 1541,1546), (i, i = 2141, 2149),&
           & 2425, 2426, (i, i = 2772, 2777), (i, i = 2807, 2809), (i, i = 2863, 2867), 2896, 2897,&
           & 3004, (i, i = 3117, 3123), (i, i = 3537, 3545), (i, i = 3551, 3556), (i, i = 3586, 3594),&
           & (i, i = 3602, 3607), (i, i = 3795, 3801), (i, i = 3810, 3953), (i, i = 3961, 4026),&
-          & 5284, 5287, 5613, 5669 /)
+          & 5284, 5287, 5613, 5669, 0 /)
      
-          k = 1 ! Сдвиг при обнаружении элемента из N_if_array,
-                ! уменьшаем таким образом массив индексов 1:N до размера N - N_if
+          k = 1 ! Уменьшаемое в сдвиге (k - 1) при обнаружении элемента из N_if_array;
+                ! приводим таким образом массив индексов 1:N к размеру 1:N - N_if
 
           ! Заполнение массива N_index_array
 
@@ -44,16 +50,18 @@ implicit none
 
                else
 
-                    k = k + 1; cycle
+                    k = k + 1
 
                endif
 
           enddo
+          
+          deallocate(N_if_array)
      
      else
      
-          k = 1 ! Сдвиг при обнаружении нулевого элемента из столбца A(:,2),
-                ! уменьшаем таким образом массив индексов 1:N до размера N - N_if
+          k = 1 ! Уменьшаемое в сдвиге (k - 1) при обнаружении элемента из N_if_array;
+                ! приводим таким образом массив индексов 1:N к размеру 1:N - N_if
      
           do i = 0, N - 1
 
@@ -63,7 +71,7 @@ implicit none
 
                else
 
-                    k = k + 1; cycle
+                    k = k + 1
 
                endif
 
@@ -75,13 +83,11 @@ implicit none
      
 
      ! [Вычисление среднего значения выборки]
-     subroutine F1_mean(A, x_mean, N_index_array, N_wif, N, N_d, use_if, mpiSize, mpiRank)
+     subroutine F1_mean(A, x_mean, N_wif, N, N_d, N_index_array, mpiSize, mpiRank)
      implicit none
      
      integer(4), intent(in) :: N_wif                    ! Размер выборки с исключениями (N - N_if)
-     integer(4), intent(in) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений
      integer(4), intent(in) :: N                        ! Размер выборки
-     integer(4), intent(in) :: use_if                   ! Использовать массив исключений?
      real(8), intent(in)    :: A(0:N-1,2)               ! Матрица исходных данных
      real(8), intent(in)    :: N_d                      ! Овеществление N
      real(8), intent(out)   :: x_mean                   ! Среднее значение выборки с учётом исключений
@@ -100,12 +106,15 @@ implicit none
      
      real(8) partion_x_mean ! Сумма A(2,j) в порции по массиву исключений
      
+     ! Опциональный массив: использование зависит от ответа на вопрос о массиве исключений
+     integer(4), optional, intent(in) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений
+     
      integer(4) t, j ! Вспомогательные переменные
      
      x_mean = 0d0
      partion_x_mean = 0d0
      
-     if (use_if .eq. 0) then
+     if (present(N_index_array)) then
      
           ! Вычисление размеров порций и их границ [1]
      
@@ -169,9 +178,9 @@ implicit none
      integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i
      
      ! Стандартные и вспомогательные переменные MPI
-     integer(4), intent(in) :: mpiSize ! Размер коммуникатора
-     integer(4), intent(in) :: mpiRank ! Ранг процесса
-     integer(4) status ! Переменная статуса передачи
+     integer(4), intent(in) :: mpiSize  ! Размер коммуникатора
+     integer(4), intent(in) :: mpiRank  ! Ранг процесса
+     integer(4) status(MPI_STATUS_SIZE) ! Переменная статуса передачи
      integer(4) ierr   ! Переменная ошибки
      
      integer(4) t, k, i         ! Вспомогательные переменные
@@ -311,14 +320,12 @@ implicit none
 
 
      ! [Вычисление периодограммы]
-     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_index_array, N, N_d, N_wif, x_mean, pi, I_p, use_if, mpiSize, mpiRank)
+     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p, N_index_array, mpiSize, mpiRank)
      implicit none
      
      integer(4), intent(in) :: leftbound, rightbound    ! Границы рабочего диапазона частот
      integer(4), intent(in) :: N                        ! Размер выборки
      integer(4), intent(in) :: N_wif                    ! Размер выборки с исключениями (N - N_if)
-     integer(4), intent(in) :: use_if                   ! Использовать массив исключений?
-     integer(4), intent(in) :: N_index_array(0:N_wif-1) ! Массив индексов с учётом исключений
      
      real(8), intent(in)    :: A(0:N-1,2)  ! Матрица исходных данных
      real(8), intent(in)    :: p_step      ! Шаг дискретизации множителей p (для частот)
@@ -338,15 +345,18 @@ implicit none
      integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i
      
      ! Стандартные и вспомогательные переменные MPI
-     integer(4), intent(in) :: mpiSize ! Размер коммуникатора
-     integer(4), intent(in) :: mpiRank ! Ранг процесса
-     integer(4) status ! Переменная статуса передачи
+     integer(4), intent(in) :: mpiSize  ! Размер коммуникатора
+     integer(4), intent(in) :: mpiRank  ! Ранг процесса
+     integer(4) status(MPI_STATUS_SIZE) ! Переменная статуса передачи
      integer(4) ierr   ! Переменная ошибки
      
      real(8), intent(out) :: I_p(leftbound:rightbound) ! Массив значений периодограммы
      real(8) period(leftbound:rightbound)              ! Вектор значений периодов
      real(8) frequency(leftbound:rightbound)           ! Вектор значений частот
      
+     ! Опциональный массив: использование зависит от ответа на вопрос о массиве исключений
+     integer(4), optional, intent(in) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений     
+
      real(8) p_d, j_d ! Овеществления
      
      integer(4) p, t, j, i ! Вспомогательные переменные
@@ -366,7 +376,7 @@ implicit none
      
      ! Выполнение процесcом своей порции     
      
-     if (use_if .eq. 0) then ! Использовать массив исключений?
+     if (present(N_index_array)) then ! Использовать массив исключений?
      
           do p = p_leftbound, p_rightbound, 1
 
@@ -526,8 +536,7 @@ implicit none
      
      
      ! [Вычисление коррелограммы через применение обратного преобразования Фурье к периодограмме]
-     subroutine F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, &
-     &pi, bias_fix, mpiSize, mpiRank)
+     subroutine F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, pi, bias_fix, mpiSize, mpiRank)
      implicit none
      
      integer(4), intent(in) :: N                         ! Размер выборки
@@ -551,9 +560,9 @@ implicit none
      integer(4) send_leftbound, send_rightbound ! Границы индексов для данного ранга при ранге i
      
      ! Стандартные и вспомогательные переменные MPI
-     integer(4), intent(in) :: mpiSize ! Размер коммуникатора
-     integer(4), intent(in) :: mpiRank ! Ранг процесса
-     integer(4) status ! Переменная статуса передачи
+     integer(4), intent(in) :: mpiSize  ! Размер коммуникатора
+     integer(4), intent(in) :: mpiRank  ! Ранг процесса
+     integer(4) status(MPI_STATUS_SIZE) ! Переменная статуса передачи
      integer(4) ierr   ! Переменная ошибки
      
      real(8) p_d, t_d, t_koef_d ! Овеществления

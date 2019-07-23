@@ -6,7 +6,7 @@
      # Настройки компиляции программ
      
      comp := gfortran
-     opt := -c -Wall -Wtabs -std=f2008
+     opt := -Ofast
      pattern := f95
      main_name := main
      
@@ -28,16 +28,16 @@
      # Блок правил для компиляции объектных файлов
       
      $(main_name) : $(obj_main) $(obj_mod)
-	               $(comp) $^ -o $@
+	               $(comp) $(opt) $^ -o $@
 
      $(source_path)%.mod : $(anypattern)
-	                      $(comp) $(opt) -J $(source_path) $<
+	                      $(comp) -c $(opt) -J $(source_path) $<
 	                      if [ "./" != "$(source_path)" ]; then\
 	                           mv -f $(patsubst $(source_path)%.mod, %.o, ./$@) $(source_path);\
 	                      fi
 
      $(obj_main) : $(source_path)$(main_name).$(pattern)
-	              $(comp) $(opt) $< -o $@
+	              $(comp) -c $(opt) $< -o $@
 	
      # Блок правил для сборки программы
       
