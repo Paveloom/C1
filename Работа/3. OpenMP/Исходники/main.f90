@@ -80,10 +80,10 @@ implicit none
      N_d = N
      
      ! Исходные данные
-     allocate(A(0:N - 1,2), stat = ier)
+     allocate(A(0:N-1,2), stat = ier)
      if (ier .ne. 0) stop 'Не удалось выделить память для массива A'
      
-     ! Считывание исходных данных
+     ! [Считывание исходных данных]
 
      do i = 0, N - 1
 
@@ -91,42 +91,16 @@ implicit none
 
      enddo
      
-     ! Вычисление размера выборки с исключениями
-     
-     if (use_if .ne. 0) N_if = 0
-     
-     if (index_array_manually .eq. 0) then
-          
-          N_wif = N - N_if
-
-     else
-     
-          N_wif = 0
-     
-          !$omp parallel do private(i) shared(N, A) reduction(+: N_wif) default(none) schedule(dynamic)
-          do i = 0, N - 1
-          
-               if (A(i,2) .ne. 0d0) then
-
-                    N_wif = N_wif + 1
-
-               endif
-               
-          enddo
-          !$omp end parallel do
-          
-     endif
-     
-     ! Определение pi
+     ! [Определение pi]
      pi = 4d0 * datan(1d0)
 
-     ! Вычисление шага дискретизации для множителей частот
+     ! [Вычисление шага дискретизации для множителей частот]
 
      p_num = N * p_koef     ! Общее число множителей p
      p_num_d = p_num
      p_step = N_d / p_num_d
 
-     ! Использование (если указано) полного рабочего диапазона частот
+     ! [Использование (если указано) полного рабочего диапазона частот]
 
      if (full_range .eq. 0) then
 
@@ -146,39 +120,62 @@ implicit none
      
      if (use_if .eq. 0) then ! Использовать массив исключений?
      
-          ! Массив индексов с учётом исключений
-          allocate(N_index_array(0:N_wif - 1), stat = ier)
-          if (ier .ne. 0) stop 'Не удалось выделить память для массива N_index_array'
-          
           if (index_array_manually .eq. 0) then ! Заполнять массив исключений вручную?
           
+               ! [Вычисление размера выборки с исключениями]
+               N_wif = N - N_if
+               
+               ! Массив индексов с учётом исключений
+               allocate(N_index_array(0:N_wif-1), stat = ier)
+               if (ier .ne. 0) stop 'Не удалось выделить память для массива N_index_array'
+          
                ! [Заполнение массива индексов-исключений]
-               call F0_get_index_array(N_index_array, N_wif, N_if, N)
+               call F0_get_index_array(N_index_array, N, N_if)
                
                ! [Вычисление среднего значения выборки]
-               call F1_mean(A, x_mean, N_wif, N, N_d, N_index_array)
+               call F1_mean(A, x_mean, N_wif=N_wif, N_index_array=N_index_array)
                
                ! [Вычисление коррелограммы прямым способом]
                call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix)
                
                ! [Вычисление периодограммы]
-               call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p, N_index_array)
+               call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_d, x_mean, pi, I_p, N_wif, N_index_array)
                
                deallocate(N_index_array)
                
           else
           
+               ! [Вычисление размера выборки с исключениями]
+               
+               N_wif = 0
+     
+               !$omp parallel do private(i) shared(N, A) reduction(+: N_wif) default(none) schedule(dynamic)
+               do i = 0, N - 1
+          
+                    if (A(i,2) .ne. 0d0) then
+
+                         N_wif = N_wif + 1
+
+                    endif
+               
+               enddo
+               !$omp end parallel do
+               
+               ! Массив индексов с учётом исключений
+               allocate(N_index_array(0:N_wif-1), stat = ier)
+               if (ier .ne. 0) stop 'Не удалось выделить память для массива N_index_array'
+               
                ! [Заполнение массива индексов-исключений]
-               call F0_get_index_array(N_index_array, N_wif, N_if, N, A)
+               call F0_get_index_array(N_index_array, N, A=A)
                
                ! [Вычисление среднего значения выборки]
-               call F1_mean(A, x_mean, N_wif, N, N_d, N_index_array)
+               call F1_mean(A, x_mean, N_wif=N_wif, N_index_array=N_index_array)
                
                ! [Вычисление коррелограммы прямым способом]
                call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix)
                
                ! [Вычисление периодограммы]
-               call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p, N_index_array)
+               call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_d, x_mean, pi, I_p, N_wif, N_index_array)
           
                deallocate(N_index_array)
           
@@ -187,13 +184,13 @@ implicit none
      else
      
           ! [Вычисление среднего значения выборки]
-          call F1_mean(A, x_mean, N_wif, N, N_d)
+          call F1_mean(A, x_mean, N, N_d)
           
           ! [Вычисление коррелограммы прямым способом]
           call F2_correlogram_direct(A, x_mean, N, N_d, bias_fix)
           
           ! [Вычисление периодограммы]
-          call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p)
+          call F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_d, x_mean, pi, I_p, N=N)
           
      endif
      

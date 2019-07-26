@@ -7,25 +7,24 @@ implicit none
      contains
      
      ! [Формирование массива N_index_array и считывание исходных данных]
-     subroutine F0_get_index_array(N_index_array, N_wif, N_if, N, A)
+     subroutine F0_get_index_array(N_index_array, N, N_if, A)
      implicit none
      
-     integer(4), intent(in) :: N_wif ! Размер выборки с исключениями (N - N_if)
-     integer(4), intent(in) :: N_if  ! Число исключений
-     integer(4), intent(in) :: N     ! Размер выборки
+     integer(4), intent(in) :: N ! Размер выборки
 
-     integer(4), intent(out) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений
+     integer(4), intent(out) :: N_Index_array(0:) ! Массив индексов с учётом исключений
      integer(4), allocatable, dimension(:) :: N_if_array ! Массив индексов-исключений
      
      ! Вспомогательные переменные
      integer(4) i, k, ier
      
-     ! Опциональная переменная
-     real(8), optional, intent(in) :: A(0:N-1,2) ! Матрица исходных данных
+     ! Опциональные переменные: использование зависит от ответа на вопрос о ручном вводе исключений
+     integer(4), optional, intent(in) :: N_if ! Число исключений
+     real(8), optional, intent(in) :: A(0:,:) ! Матрица исходных данных
      
-     if (.not.(present(A))) then
+     if (present(N_if)) then ! Эквивалентно use_if .eq. 0 и index_array_manually .eq. 0
      
-          allocate(N_if_array(1:N_if + 1), stat = ier)
+          allocate(N_if_array(1:N_if+1), stat = ier)
           if (ier .ne. 0) stop 'Не удалось выделить память для массива N_if_array'
      
           ! Заполнение массива индексов-исключений: первые N_if элементов заполняются
@@ -46,7 +45,7 @@ implicit none
 
                if (i .ne. N_if_array(k) - 1) then
 
-                    N_index_array(i - k + 1) = i
+                    N_index_array(i-k+1) = i
 
                else
 
@@ -58,7 +57,7 @@ implicit none
           
           deallocate(N_if_array)
      
-     else
+     else ! Эквивалентно use_if .eq. 0 и index_array_manually .ne. 0
      
           k = 1 ! Уменьшаемое в сдвиге (k - 1) при обнаружении элемента из N_if_array;
                 ! приводим таким образом массив индексов 1:N к размеру 1:N - N_if
@@ -67,7 +66,7 @@ implicit none
 
                if (A(i,2) .ne. 0d0) then
 
-                    N_index_array(i - k + 1) = i
+                    N_index_array(i-k+1) = i
 
                else
 
@@ -83,23 +82,23 @@ implicit none
      
 
      ! [Вычисление среднего значения выборки]
-     subroutine F1_mean(A, x_mean, N_wif, N, N_d, N_index_array)
+     subroutine F1_mean(A, x_mean, N, N_d, N_wif, N_index_array)
      implicit none
      
-     integer(4), intent(in) :: N_wif                      ! Размер выборки с исключениями (N - N_if)
-     integer(4), intent(in) :: N                          ! Размер выборки
-     real(8), intent(in)    :: A(0:N - 1,2)               ! Матрица исходных данных
-     real(8), intent(in)    :: N_d                        ! Овеществление N
-     real(8), intent(out)   :: x_mean                     ! Среднее значение выборки с учётом исключений
+     real(8), intent(in)  :: A(0:,:) ! Матрица исходных данных
+     real(8), intent(out) :: x_mean  ! Среднее значение выборки с учётом исключений
      
-     ! Опциональный массив: использование зависит от ответа на вопрос о массиве исключений
-     integer(4), optional, intent(in) :: N_Index_array(0:N_wif - 1) ! Массив индексов с учётом исключений
+     ! Опциональные переменные: использование зависит от ответа на вопрос о массиве исключений
+     integer(4), optional, intent(in) :: N_Index_array(0:) ! Массив индексов с учётом исключений
+     integer(4), optional, intent(in) :: N     ! Размер выборки
+     integer(4), optional, intent(in) :: N_wif ! Размер выборки с исключениями (N - N_if)
+     real(8), optional, intent(in)    :: N_d   ! Овеществление N
      
      integer(4) t, j ! Вспомогательные переменные
      
      x_mean = 0d0
      
-     if (present(N_index_array)) then
+     if (present(N_index_array)) then ! Эквивалентно use_if .eq. 0
 
           !$omp parallel do private(t, j) shared(N_wif, N_index_array, A) reduction(+: x_mean) default(none) schedule(dynamic)
           do t = 0, N_wif - 1, 1
@@ -113,7 +112,7 @@ implicit none
      
           x_mean = x_mean / N_wif
      
-     else
+     else ! Эквивалентно use_if .ne. 0
      
           !$omp parallel do private(j) shared(N, A) reduction(+: x_mean) default(none) schedule(dynamic)
           do j = 0, N - 1, 1
@@ -136,7 +135,7 @@ implicit none
      
      integer(4), intent(in) :: N          ! Размер выборки
      integer(4), intent(in) :: bias_fix   ! Приводить коэффициенты корреляции к несмещённой оценке?
-     real(8), intent(in)    :: A(0:N-1,2) ! Матрица исходных данных
+     real(8), intent(in)    :: A(0:,:)    ! Матрица исходных данных
      real(8), intent(in)    :: x_mean     ! Среднее значение выборки с учётом исключений
      real(8), intent(in)    :: N_d        ! Овеществление N
      
@@ -144,8 +143,8 @@ implicit none
      real(8) s1, s2  ! Временные держатели сумм для элементов выражений
      real(8) diff    ! Разность (A(t,2) - x_mean)
      
-     real(8) r(0:N - 1)   ! Вектор значений коррелограммы
-     real(8) k_d(0:N - 1) ! Вектор значений лага (k)
+     real(8) r(0:N-1)   ! Вектор значений коррелограммы
+     real(8) k_d(0:N-1) ! Вектор значений лага (k)
      
      ! Вычисление коэффициента автокорреляции c(0)
      
@@ -228,26 +227,26 @@ implicit none
 
 
      ! [Вычисление периодограммы]
-     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p, N_index_array)
+     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_d, x_mean, pi, I_p, N_wif, N_index_array, N)
      implicit none
      
-     integer(4), intent(in) :: leftbound, rightbound    ! Границы рабочего диапазона частот
-     integer(4), intent(in) :: N                        ! Размер выборки
-     integer(4), intent(in) :: N_wif                    ! Размер выборки с исключениями (N - N_if)
+     integer(4), intent(in) :: leftbound, rightbound ! Границы рабочего диапазона частот
      
-     real(8), intent(in)    :: A(0:N-1,2)  ! Матрица исходных данных
+     real(8), intent(in)    :: A(0:,:)     ! Матрица исходных данных
      real(8), intent(in)    :: p_step      ! Шаг дискретизации множителей p (для частот)
      real(8), intent(in)    :: x_mean      ! Среднее значение выборки с учётом исключений
      real(8), intent(in)    :: pi          ! Число pi
      real(8), intent(in)    :: N_d         ! Овеществление N
      real(8), intent(in)    :: leftbound_d ! Овеществление leftbound
      
-     real(8), intent(out) :: I_p(leftbound:rightbound) ! Массив значений периодограммы
-     real(8) period(leftbound:rightbound)              ! Вектор значений периодов
-     real(8) frequency(leftbound:rightbound)           ! Вектор значений частот
+     real(8), intent(out) :: I_p(leftbound:) ! Массив значений периодограммы
+     real(8) period(leftbound:rightbound)    ! Вектор значений периодов
+     real(8) frequency(leftbound:rightbound) ! Вектор значений частот
      
-     ! Опциональный массив: использование зависит от ответа на вопрос о массиве исключений
-     integer(4), optional, intent(in) :: N_Index_array(0:N_wif - 1) ! Массив индексов с учётом исключений
+     ! Опциональные переменные: использование зависит от ответа на вопрос о массиве исключений
+     integer(4), optional, intent(in) :: N_Index_array(0:) ! Массив индексов с учётом исключений
+     integer(4), optional, intent(in) :: N                 ! Размер выборки
+     integer(4), optional, intent(in) :: N_wif             ! Размер выборки с исключениями (N - N_if)
      
      real(8) p_d, j_d ! Овеществления
      
@@ -260,7 +259,7 @@ implicit none
      real(8) cos_value ! Значение косинуса от аргумента arg
      real(8) sin_value ! Значение синуса от аргумента arg
      
-     if (present(N_index_array)) then ! Использовать массив исключений?
+     if (present(N_index_array)) then ! Эквивалентно use_if .eq. 0
      
           !$omp parallel do private(p, p_d, p_cur, s1, s2, t, j, j_d, arg, cos_value, sin_value, diff) shared(leftbound, rightbound, leftbound_d, p_step, N_wif, N_index_array, pi, A, x_mean, I_p, period, frequency, N_d) default(none) schedule(dynamic)
           do p = leftbound, rightbound, 1
@@ -311,7 +310,7 @@ implicit none
           enddo
           !$omp end parallel do
      
-     else
+     else ! Эквивалентно use_if .ne. 0
      
           !$omp parallel do private(p, p_d, p_cur, s1, s2, t, j_d, arg, cos_value, sin_value, diff) shared(leftbound, rightbound, leftbound_d, p_step, N, pi, A, x_mean, I_p, period, frequency, N_d) default(none) schedule(dynamic)
           do p = leftbound, rightbound, 1
@@ -380,15 +379,15 @@ implicit none
      subroutine F4_correlogram_fourier_transform(I_p, leftbound, leftbound_d, rightbound, p_step, t_koef, N, N_d, pi, bias_fix)
      implicit none
      
-     integer(4), intent(in) :: N                         ! Размер выборки
-     integer(4), intent(in) :: t_koef                    ! Множитель дискретизации множителей t (для периодов)
-     integer(4), intent(in) :: leftbound, rightbound     ! Границы рабочего диапазона частот
-     integer(4), intent(in) :: bias_fix                  ! Приводить коэффициенты корреляции к несмещённой оценке?
-     real(8), intent(in)    :: I_p(leftbound:rightbound) ! Массив значений периодограммы
-     real(8), intent(in)    :: p_step                    ! Шаг дискретизации множителей p (для частот)
-     real(8), intent(in)    :: N_d                       ! Овеществление N
-     real(8), intent(in)    :: leftbound_d               ! Овеществление leftbound
-     real(8), intent(in)    :: pi                        ! Число pi
+     integer(4), intent(in) :: N                     ! Размер выборки
+     integer(4), intent(in) :: t_koef                ! Множитель дискретизации множителей t (для периодов)
+     integer(4), intent(in) :: leftbound, rightbound ! Границы рабочего диапазона частот
+     integer(4), intent(in) :: bias_fix              ! Приводить коэффициенты корреляции к несмещённой оценке?
+     real(8), intent(in)    :: I_p(leftbound:)       ! Массив значений периодограммы
+     real(8), intent(in)    :: p_step                ! Шаг дискретизации множителей p (для частот)
+     real(8), intent(in)    :: N_d                   ! Овеществление N
+     real(8), intent(in)    :: leftbound_d           ! Овеществление leftbound
+     real(8), intent(in)    :: pi                    ! Число pi
      
      real(8) p_d, t_d, t_koef_d ! Овеществления
      

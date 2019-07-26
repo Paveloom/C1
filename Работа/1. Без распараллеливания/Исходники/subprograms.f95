@@ -6,23 +6,22 @@ implicit none
      contains
      
      ! [Формирование массива N_index_array и считывание исходных данных]
-     subroutine F0_get_index_array(N_index_array, N_wif, N_if, N, A)
+     subroutine F0_get_index_array(N_index_array, N, N_if, A)
      implicit none
      
-     integer(4), intent(in) :: N_wif ! Размер выборки с исключениями (N - N_if)
-     integer(4), intent(in) :: N_if  ! Число исключений
-     integer(4), intent(in) :: N     ! Размер выборки
+     integer(4), intent(in) :: N ! Размер выборки
 
-     integer(4), intent(out) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений
+     integer(4), intent(out) :: N_Index_array(0:) ! Массив индексов с учётом исключений
      integer(4), allocatable, dimension(:) :: N_if_array ! Массив индексов-исключений
      
      ! Вспомогательные переменные
      integer(4) i, k, ier
      
-     ! Опциональная переменная
-     real(8), optional, intent(in) :: A(0:N-1,2) ! Матрица исходных данных
+     ! Опциональные переменные: использование зависит от ответа на вопрос о ручном вводе исключений
+     integer(4), optional, intent(in) :: N_if    ! Число исключений
+     real(8), optional, intent(in) :: A(0:,:) ! Матрица исходных данных
      
-     if (.not.(present(A))) then
+     if (present(N_if)) then ! Эквивалентно use_if .eq. 0 и index_array_manually .eq. 0
      
           allocate(N_if_array(1:N_if+1), stat = ier)
           if (ier .ne. 0) stop 'Не удалось выделить память для массива N_if_array'
@@ -57,7 +56,7 @@ implicit none
           
           deallocate(N_if_array)
      
-     else
+     else ! Эквивалентно use_if .eq. 0 и index_array_manually .ne. 0
      
           k = 1 ! Уменьшаемое в сдвиге (k - 1) при обнаружении элемента из N_if_array;
                 ! приводим таким образом массив индексов 1:N к размеру 1:N - N_if
@@ -82,23 +81,22 @@ implicit none
      
 
      ! [Вычисление среднего значения выборки]
-     subroutine F1_mean(A, x_mean, N_wif, N, N_d, N_index_array)
+     subroutine F1_mean(A, x_mean, N_d, N_wif, N_index_array)
      implicit none
      
-     integer(4), intent(in) :: N_wif                      ! Размер выборки с исключениями (N - N_if)
-     integer(4), intent(in) :: N                          ! Размер выборки
-     real(8), intent(in)    :: A(0:N-1,2)               ! Матрица исходных данных
-     real(8), intent(in)    :: N_d                        ! Овеществление N
-     real(8), intent(out)   :: x_mean                     ! Среднее значение выборки с учётом исключений
+     real(8), intent(in)    :: A(0:,:) ! Матрица исходных данных
+     real(8), intent(out)   :: x_mean     ! Среднее значение выборки с учётом исключений
      
-     ! Опциональный массив: использование зависит от ответа на вопрос о массиве исключений
-     integer(4), optional, intent(in) :: N_Index_array(0:N_wif-1) ! Массив индексов с учётом исключений
+     ! Опциональные переменные: использование зависит от ответа на вопрос о массиве исключений
+     integer(4), optional, intent(in) :: N_Index_array(0:) ! Массив индексов с учётом исключений
+     integer(4), optional, intent(in) :: N_wif ! Размер выборки с исключениями (N - N_if)
+     real(8), optional, intent(in)    :: N_d   ! Овеществление N
      
      integer(4) t, j ! Вспомогательные переменные
      
      x_mean = 0d0
      
-     if (present(N_index_array)) then
+     if (present(N_index_array)) then ! Эквивалентно use_if .eq. 0
 
           do t = 0, N_wif - 1, 1
 
@@ -110,7 +108,7 @@ implicit none
      
           x_mean = x_mean / N_wif
      
-     else
+     else ! Эквивалентно use_if .ne. 0
      
           x_mean = sum(A(:,2))
           x_mean = x_mean / N_d
@@ -126,7 +124,7 @@ implicit none
      
      integer(4), intent(in) :: N          ! Размер выборки
      integer(4), intent(in) :: bias_fix   ! Приводить коэффициенты корреляции к несмещённой оценке?
-     real(8), intent(in)    :: A(0:N-1,2) ! Матрица исходных данных
+     real(8), intent(in)    :: A(0:,:) ! Матрица исходных данных
      real(8), intent(in)    :: x_mean     ! Среднее значение выборки с учётом исключений
      real(8), intent(in)    :: N_d        ! Овеществление N
      
@@ -209,24 +207,24 @@ implicit none
 
 
      ! [Вычисление периодограммы]
-     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N, N_d, N_wif, x_mean, pi, I_p, N_index_array)
+     subroutine F3_periodogram(A, leftbound, leftbound_d, rightbound, p_step, N_d, x_mean, pi, I_p, N_wif, N_index_array, N)
      implicit none
      
-     integer(4), intent(in) :: leftbound, rightbound    ! Границы рабочего диапазона частот
-     integer(4), intent(in) :: N                        ! Размер выборки
-     integer(4), intent(in) :: N_wif                    ! Размер выборки с исключениями (N - N_if)
+     integer(4), intent(in) :: leftbound, rightbound ! Границы рабочего диапазона частот
      
-     real(8), intent(in)    :: A(0:N-1,2)  ! Матрица исходных данных
+     real(8), intent(in)    :: A(0:,:)     ! Матрица исходных данных
      real(8), intent(in)    :: p_step      ! Шаг дискретизации множителей p (для частот)
      real(8), intent(in)    :: x_mean      ! Среднее значение выборки с учётом исключений
      real(8), intent(in)    :: pi          ! Число pi
      real(8), intent(in)    :: N_d         ! Овеществление N
      real(8), intent(in)    :: leftbound_d ! Овеществление leftbound
      
-     real(8), intent(out) :: I_p(leftbound:rightbound) ! Массив значений периодограммы
+     real(8), intent(out) :: I_p(leftbound:) ! Массив значений периодограммы
 
-     ! Опциональный массив: использование зависит от ответа на вопрос о массиве исключений
-     integer(4), optional, intent(in) :: N_Index_array(0:N_wif - 1) ! Массив индексов с учётом исключений
+     ! Опциональные переменные: использование зависит от ответа на вопрос о массиве исключений
+     integer(4), optional, intent(in) :: N_Index_array(0:) ! Массив индексов с учётом исключений
+     integer(4), optional, intent(in) :: N                 ! Размер выборки
+     integer(4), optional, intent(in) :: N_wif             ! Размер выборки с исключениями (N - N_if)
      
      real(8) p_d, j_d ! Овеществления
      
@@ -242,7 +240,7 @@ implicit none
      open(11, file = result_path//"periodogram.dat")
      write(11, '(a, /, a, 6x, a, 6x, a, /, a)') '#', '#    Period, Days, T', 'Frequency, 1/Days, v', 'Periodogram, I(v)', '#'
      
-     if (present(N_index_array)) then ! Использовать массив исключений?
+     if (present(N_index_array)) then ! Эквивалентно use_if .eq. 0
      
           do p = leftbound, rightbound, 1
 
@@ -291,7 +289,7 @@ implicit none
           enddo
           close(11)
      
-     else
+     else ! Эквивалентно use_if .ne. 0
      
           do p = leftbound, rightbound, 1
 
